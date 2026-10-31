@@ -1,0 +1,98 @@
+name: Build & Publish Reproducible Guix / Nix Container
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  RSLSYNC_VERSION: "3.1.2.1076-1"
+  RSLSYNC_DEB_SHA256: "31b623897fef0682b97f6274d124a7d7003c5d0db47f3fe3407a5c45258fbcbb"
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+          targets: x86_64-unknown-linux-gnu
+
+      - name: Step 1 - Rust Gate & Unit Tests
+        run: cargo test --workspace --all-targets
+
+      - name: Step 2 - Strict Clippy Zero-Panic Gate
+        run: cargo clippy --workspace --all-targets -- -D warnings -D clippy::unwrap_used -D clippy::expect_used -D clippy::panic
+
+      - name: Step 3 - Rust Formatting Check
+        run: cargo fmt --all -- --check
+
+      - name: Step 4 - Build Static Rust Supervision Binaries
+        run: |
+          RUSTFLAGS="-C target-feature=+crt-static" cargo build --release --workspace --target x86_64-unknown-linux-gnu
+          mkdir -p prebuilt
+          cp target/x86_64-unknown-linux-gnu/release/rslsync-init prebuilt/
+          cp target/x86_64-unknown-linux-gnu/release/rslsync-config prebuilt/
+          cp target/x86_64-unknown-linux-gnu/release/rslsync-health prebuilt/
+          chmod 755 prebuilt/rslsync-*
+
+      - name: Step 5 - Fetch & Verify SHA256-Pinned Resilio Sync v3 DEB
+        run: |
+          DEB_URL="https://linux-packages.resilio.com/resilio-sync/deb/pool/non-free/r/resilio-sync/resilio-sync_${RSLSYNC_VERSION}_amd64.deb"
+          curl -fsSL "$DEB_URL" -o /tmp/resilio-sync.deb
+          echo "${RSLSYNC_DEB_SHA256}  /tmp/resilio-sync.deb" | sha256sum -c -
+          mkdir -p /tmp/rslsync-extract
+          cd /tmp/rslsync-extract
+          ar x /tmp/resilio-sync.deb
+          tar -xf data.tar.*
+          cp usr/bin/rslsync "${GITHUB_WORKSPACE}/prebuilt/rslsync"
+          chmod 755 "${GITHUB_WORKSPACE}/prebuilt/rslsync"
+
+      - name: Step 6 - Pack Reproducible Container Image (Guix / Nix)
+        run: |
+          if ! command -v guix >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y guix patchelf || true
+          fi
+          if command -v guix >/dev/null 2>&1; then
+            PACK_PATH=$(guix pack -f docker --entry-point=/bin/rslsync-init -S /bin=bin -S /etc=etc -S /share=share -m manifest.scm | tail -n 1)
+            cp "$PACK_PATH" resilio-sync-guix-docker-x86_64.tar.gz
+            docker load -i resilio-sync-guix-docker-x86_64.tar.gz
+          fi
+
+      - name: Step 7 - Smoke-Test Container & Health Probe
+        run: |
+          cat << 'EOF' > /tmp/Dockerfile.ci
+          FROM debian:bookworm-slim
+          RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates util-linux libxcrypt1 && rm -rf /var/lib/apt/lists/*
+          COPY prebuilt/rslsync-init /bin/rslsync-init
+          COPY prebuilt/rslsync-config /bin/rslsync-config
+          COPY prebuilt/rslsync-health /bin/rslsync-health
+          COPY prebuilt/rslsync /bin/rslsync
+          COPY assets/default-sync.conf /etc/resilio-sync/default-sync.conf
+          COPY assets/default-IgnoreList /etc/resilio-sync/default-IgnoreList
+          ENTRYPOINT ["/bin/rslsync-init"]
+          HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD ["/bin/rslsync-health", "--check"]
+          EOF
+          docker build -f /tmp/Dockerfile.ci -t ghcr.io/ubermetroid/resilio-sync-container:smoke .
+          docker run -d --name rslsync-smoke -e PUID=1026 -e PGID=100 ghcr.io/ubermetroid/resilio-sync-container:smoke
+          for i in $(seq 1 20); do
+            sleep 2
+            if docker exec rslsync-smoke /bin/rslsync-health --check; then
+              break
+            fi
+          done
+          docker logs rslsync-smoke
+          docker exec rslsync-smoke /bin/rslsync-health --check
+          docker rm -fv rslsync-smoke

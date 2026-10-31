@@ -1,0 +1,8 @@
+[package]
+name = "rslsync-config"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Zero-dependency Resilio Sync v3 recursive-descent JSON & schema validator"
+
+[dependencies]

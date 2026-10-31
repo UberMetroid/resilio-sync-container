@@ -1,0 +1,16 @@
+# UBERMETROID_NAS_METADATA_IGNORES
+# Safe OS & NAS metadata exclusions for Synology DSM, Unraid, and Fedora Server
+@eaDir
+@tmp
+#recycle
+#snapshot
+.SynologyWorkingDirectory
+.Recycle.Bin
+.fuse_hidden*
+.Trash-*
+.DS_Store
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini

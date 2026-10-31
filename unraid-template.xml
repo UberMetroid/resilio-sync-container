@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>resilio-sync-container</Name>
+  <Repository>ghcr.io/ubermetroid/resilio-sync-container:latest</Repository>
+  <Registry>https://ghcr.io/ubermetroid/resilio-sync-container</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/UberMetroid/resilio-sync-container</Support>
+  <Project>https://github.com/UberMetroid/resilio-sync-container</Project>
+  <Overview>Resilio Sync v3: Hardened, reproducible GNU Guix / Nix + zero-dependency Rust Resilio Sync v3 (3.1.2.1076) P2P synchronization appliance for Unraid, Synology NAS, and Fedora Server. Features fail-closed JSON &amp; v3 key-whitelist validation, live http.port health probing, safe NAS metadata IgnoreList seeding, and non-recursive /sync ACL preservation.</Overview>
+  <Category>Backup: Cloud: Network:Other</Category>
+  <WebUI>http://[IP]:[PORT:8888]/gui/</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/UberMetroid/resilio-sync-container/main/unraid-template.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/UberMetroid/resilio-sync-container/main/assets/resilio-sync-icon.png</Icon>
+  <ExtraParams>--restart=unless-stopped --security-opt=no-new-privileges:true --entrypoint=/bin/rslsync-init --health-cmd="/bin/rslsync-health --check" --health-interval=30s --health-timeout=5s --health-retries=3</ExtraParams>
+  <PostArgs/>
+  <CPUset/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires/>
+  <Config Name="WebUI Port" Target="8888" Default="8888" Mode="tcp" Description="Resilio Sync v3 WebUI HTTP Port (/gui/)" Type="Port" Display="always" Required="true" Mask="false">8888</Config>
+  <Config Name="Sync Listening Port (TCP)" Target="55555" Default="55555" Mode="tcp" Description="Resilio Sync P2P data transfer listening port (TCP)" Type="Port" Display="always" Required="true" Mask="false">55555</Config>
+  <Config Name="Sync Listening Port (UDP)" Target="55555" Default="55555" Mode="udp" Description="Resilio Sync P2P uTP data transfer listening port (UDP)" Type="Port" Display="always" Required="true" Mask="false">55555</Config>
+  <Config Name="Health &amp; Telemetry API Port" Target="9198" Default="9198" Mode="tcp" Description="JSON Health &amp; Sync Telemetry API (/status) — collision-free with manta (9199), barracuda (9299), and urchin (9399)" Type="Port" Display="always" Required="false" Mask="false">9198</Config>
+  <Config Name="AppData Config Path" Target="/config" Default="/mnt/user/appdata/resilio-sync/config" Mode="rw" Description="Persistent Resilio Sync configuration and SQLite state directory (/config/storage)" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/resilio-sync/config</Config>
+  <Config Name="Sync Root Share Path" Target="/sync" Default="/mnt/user/sync" Mode="rw" Description="Root directory for synchronized folders (never touched by recursive chown/chmod)" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/sync</Config>
+  <Config Name="Device Name" Target="DEVICE_NAME" Default="unraid-resilio-sync" Mode="" Description="Device name displayed to Resilio Sync peers and WebUI" Type="Variable" Display="always" Required="false" Mask="false">unraid-resilio-sync</Config>
+  <Config Name="Seed NAS Metadata IgnoreList" Target="SEED_IGNORE_LIST" Default="true" Mode="" Description="Automatically seed safe NAS/OS metadata exclusions (@eaDir, #recycle, .Recycle.Bin, .Trash-*) into /sync/*/.sync/IgnoreList" Type="Variable" Display="advanced" Required="false" Mask="false">true</Config>
+  <Config Name="Drop Privileges" Target="DROP_PRIVS" Default="true" Mode="" Description="Run rslsync as unprivileged PUID/PGID via setpriv" Type="Variable" Display="advanced" Required="false" Mask="false">true</Config>
+  <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="Unprivileged user UID (Unraid nobody=99)" Type="Variable" Display="advanced" Required="false" Mask="false">99</Config>
+  <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="Unprivileged group GID (Unraid users=100)" Type="Variable" Display="advanced" Required="false" Mask="false">100</Config>
+  <Config Name="UMASK" Target="UMASK" Default="002" Mode="" Description="File creation umask (002 = 775 dirs / 664 files)" Type="Variable" Display="advanced" Required="false" Mask="false">002</Config>
+</Container>

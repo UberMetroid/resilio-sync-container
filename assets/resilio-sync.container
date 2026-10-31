@@ -1,0 +1,51 @@
+# Fedora Server systemd Podman Quadlet unit
+# Install to: /etc/containers/systemd/resilio-sync.container (rootful)
+#         or: ~/.config/containers/systemd/resilio-sync.container (rootless)
+# Reload & start: systemctl --user daemon-reload && systemctl --user start resilio-sync
+# Firewalld: sudo firewall-cmd --permanent --add-port=8888/tcp --add-port=55555/tcp --add-port=55555/udp && sudo firewall-cmd --reload
+
+[Unit]
+Description=Hardened Resilio Sync v3 Appliance (UberMetroid/resilio-sync-container)
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image=ghcr.io/ubermetroid/resilio-sync-container:latest
+ContainerName=resilio-sync
+HostName=fedora-resilio-sync
+Entrypoint=/bin/rslsync-init
+AutoUpdate=registry
+NoNewPrivileges=true
+UserNS=keep-id:uid=1000,gid=1000
+
+Environment=PUID=1000
+Environment=PGID=1000
+Environment=UMASK=002
+Environment=DEVICE_NAME=fedora-resilio-sync
+Environment=WEBUI_PORT=8888
+Environment=SYNC_PORT=55555
+Environment=HEALTH_PORT=9198
+Environment=SEED_IGNORE_LIST=true
+Environment=DROP_PRIVS=true
+
+PublishPort=8888:8888/tcp
+PublishPort=55555:55555/tcp
+PublishPort=55555:55555/udp
+PublishPort=127.0.0.1:9198:9198/tcp
+
+# :Z applies private SELinux label to /config; :z applies shared SELinux label to /sync
+Volume=/var/lib/resilio-sync/config:/config:Z
+Volume=/srv/sync:/sync:z
+
+HealthCmd=/bin/rslsync-health --check
+HealthInterval=30s
+HealthTimeout=5s
+HealthRetries=3
+
+[Service]
+ExecStop=/usr/bin/podman exec resilio-sync /bin/rslsync-init --shutdown
+Restart=always
+TimeoutStopSec=20
+
+[Install]
+WantedBy=multi-user.target default.target
