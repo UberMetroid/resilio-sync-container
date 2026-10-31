@@ -86,6 +86,7 @@ jobs:
             docker cp prebuilt/rslsync-config "$CONTAINER_ID":/bin/rslsync-config
             docker cp prebuilt/rslsync-health "$CONTAINER_ID":/bin/rslsync-health
             docker commit \
+              --change 'LABEL org.opencontainers.image.source="https://github.com/UberMetroid/resilio-sync-container"' \
               --change 'ENTRYPOINT ["/bin/rslsync-init"]' \
               --change 'HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD ["/bin/rslsync-health", "--check"]' \
               "$CONTAINER_ID" ghcr.io/ubermetroid/resilio-sync-container:latest
@@ -93,6 +94,7 @@ jobs:
           else
             cat << 'EOF' > /tmp/Dockerfile.ci
           FROM debian:bookworm-slim
+          LABEL org.opencontainers.image.source="https://github.com/UberMetroid/resilio-sync-container"
           RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates util-linux libcrypt1 && rm -rf /var/lib/apt/lists/*
           COPY prebuilt/rslsync-init /bin/rslsync-init
           COPY prebuilt/rslsync-config /bin/rslsync-config

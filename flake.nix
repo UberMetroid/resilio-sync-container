@@ -101,6 +101,9 @@
 
             config = {
               Entrypoint = [ "/bin/rslsync-init" ];
+              Labels = {
+                "org.opencontainers.image.source" = "https://github.com/UberMetroid/resilio-sync-container";
+              };
               Healthcheck = {
                 Test = [ "CMD" "/bin/rslsync-health" "--check" ];
                 Interval = 30000000000;
