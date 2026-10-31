@@ -168,6 +168,22 @@ pub fn validate_sync_conf_str(raw: &str, health_port: u16) -> Result<ValidatedSy
         return Err("Port collision between webui, listening_port, or health_port".to_string());
     }
 
+    if let Some(wl_val) = find_key(webui, "dir_whitelist") {
+        let JsonValue::Array(wl) = wl_val else {
+            return Err("'webui.dir_whitelist' must be a JSON array".to_string());
+        };
+        for item in wl {
+            let p = item
+                .as_str()
+                .ok_or_else(|| "webui.dir_whitelist entries must be strings".to_string())?;
+            if !is_confined_to(p, "/config")
+                && !ALLOWED_DATA_ROOTS.iter().any(|&r| is_confined_to(p, r))
+            {
+                return Err(format!("webui.dir_whitelist path '{p}' not allowed"));
+            }
+        }
+    }
+
     Ok(ValidatedSyncConf {
         storage_path: storage_path.to_string(),
         pid_file: pid_file.to_string(),
@@ -200,7 +216,6 @@ mod tests {
         let v = validate_sync_conf_str(SAMPLE_CONF, 9198).unwrap();
         assert_eq!((v.listening_port, v.webui_port), (55555, 8888));
         assert_eq!(v.storage_path, "/config/storage");
-
         let with_proxy = SAMPLE_CONF
             .replace(
                 "\"use_upnp\": false,",
@@ -223,10 +238,11 @@ mod tests {
     #[test]
     #[rustfmt::skip]
     fn test_rejects_lsio_downloads_mismatch_and_port_collision() {
-        for bad_root in ["\"/users/\"", "\"/sync/\""] {
+        for bad_root in ["\"/users/\"", "\"/sync/\"", "\"/config\""] {
             let conf = SAMPLE_CONF.replace("\"directory_root\": \"/\"", &format!("\"directory_root\": {bad_root}"));
             assert!(validate_sync_conf_str(&conf, 9198).is_err());
         }
+        assert!(validate_sync_conf_str(&SAMPLE_CONF.replace("\"/config\"", "\"/etc\""), 9198).is_err());
         assert!(validate_sync_conf_str(SAMPLE_CONF, 8888).is_err());
         assert!(parse_host_port("::1").is_err() && parse_host_port("0.0.0.0:8888:9999").is_err());
         assert_eq!(parse_host_port("[::]:8888").unwrap(), 8888);
