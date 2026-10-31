@@ -43,6 +43,7 @@ fn main() {
     let health_port: u16 = env::var("HEALTH_PORT")
         .ok()
         .and_then(|v| v.parse().ok())
+        .filter(|&p| p > 0)
         .unwrap_or(9198);
 
     let raw = match fs::read_to_string(&config_path) {

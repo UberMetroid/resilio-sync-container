@@ -12,13 +12,18 @@ const ALLOWED_TOP_KEYS: &[&str] = &[
     "webui", "proxy_type", "proxy_addr", "proxy_port", "proxy_auth", "proxy_username",
     "proxy_password", "search_lan", "known_hosts", "folder_defaults.delete_to_trash",
     "folder_defaults.use_tracker", "folder_defaults.use_relay", "folder_defaults.use_lan_broadcast",
-    "folder_defaults.known_hosts", "folder_defaults.transfer_priority", "bind_interface",
-    "max_packet_size", "use_relay_server", "use_tracker", "disk_low_priority", "profiler_enabled",
+    "folder_defaults.known_hosts", "folder_defaults.transfer_priority", "folder_defaults.delete_unknown_files",
+    "folder_defaults.lan_discovery_mode", "bind_interface", "max_packet_size", "use_relay_server",
+    "use_tracker", "disk_low_priority", "profiler_enabled", "tracker_protocols", "log_size",
+    "log_ttl", "config_refresh_interval", "config_save_interval", "send_statistics",
+    "ignore_symlinks", "lazy_indexing", "prefer_utp2_lan", "net.enable_utp2", "net.udp_ipv4_mtu",
+    "use_only_bind_interface", "worker_threads_count", "share_file_ttl", "peer_expiration_days",
+    "free_space_warning_threshold",
 ];
 
 #[rustfmt::skip]
 const ALLOWED_WEBUI_KEYS: &[&str] = &[
-    "listen", "login", "password", "password_hash", "allow_empty_password",
+    "listen", "login", "password", "password_hash", "password_hash_unified", "allow_empty_password",
     "dir_whitelist", "force_https", "ssl_certificate", "ssl_private_key", "api_key", "context",
 ];
 
@@ -100,9 +105,12 @@ pub fn validate_sync_conf_str(raw: &str, health_port: u16) -> Result<ValidatedSy
     let pid_file = find_key(obj, "pid_file")
         .and_then(JsonValue::as_str)
         .unwrap_or("/config/storage/sync.pid");
-    if !is_confined_to(pid_file, "/config") || pid_file == "/config" {
+    if !is_confined_to(pid_file, "/config")
+        || pid_file.trim_end_matches('/') == "/config"
+        || pid_file.ends_with('/')
+    {
         return Err(format!(
-            "pid_file '{pid_file}' must reside under /config without '..' traversal"
+            "pid_file '{pid_file}' must be a file path under /config without '..' traversal"
         ));
     }
 

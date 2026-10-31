@@ -59,6 +59,7 @@ fn main() {
     let bind_port: u16 = env::var("HEALTH_PORT")
         .ok()
         .and_then(|v| v.parse().ok())
+        .filter(|&p| p > 0)
         .unwrap_or(9198);
     let bind_host = env::var("HEALTH_BIND").unwrap_or_else(|_| "0.0.0.0".to_string());
     let sync_conf = PathBuf::from(

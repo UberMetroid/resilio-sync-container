@@ -87,6 +87,7 @@ pub fn strip_json_comments(input: &str) -> Result<String, String> {
 struct Parser<'a> {
     bytes: &'a [u8],
     pos: usize,
+    depth: usize,
 }
 
 impl<'a> Parser<'a> {
@@ -98,6 +99,9 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_value(&mut self) -> Result<JsonValue, String> {
+        if self.depth > 64 {
+            return Err("JSON nesting depth exceeds maximum limit (64)".to_string());
+        }
         let tok = self.peek();
         let rest = &self.bytes[self.pos..];
         let (n, val) = match tok {
@@ -179,6 +183,7 @@ impl<'a> Parser<'a> {
             self.pos += 1;
             return Ok(JsonValue::Object(Vec::new()));
         }
+        self.depth += 1;
         let mut entries = Vec::new();
         loop {
             let key = self.parse_string()?;
@@ -191,6 +196,7 @@ impl<'a> Parser<'a> {
             self.pos += 1;
             entries.push((key, self.parse_value()?));
             if !self.step_delim(b'}', "object")? {
+                self.depth -= 1;
                 return Ok(JsonValue::Object(entries));
             }
         }
@@ -202,10 +208,12 @@ impl<'a> Parser<'a> {
             self.pos += 1;
             return Ok(JsonValue::Array(Vec::new()));
         }
+        self.depth += 1;
         let mut items = Vec::new();
         loop {
             items.push(self.parse_value()?);
             if !self.step_delim(b']', "array")? {
+                self.depth -= 1;
                 return Ok(JsonValue::Array(items));
             }
         }
@@ -234,7 +242,11 @@ impl<'a> Parser<'a> {
 pub fn parse_sync_conf_json(raw: &str) -> Result<JsonValue, String> {
     let stripped = strip_json_comments(raw)?;
     let bytes = stripped.as_bytes();
-    let mut parser = Parser { bytes, pos: 0 };
+    let mut parser = Parser {
+        bytes,
+        pos: 0,
+        depth: 0,
+    };
     let root = parser.parse_value()?;
     if parser.peek().is_some() {
         return Err(format!("Unexpected trailing data at byte {}", parser.pos));
