@@ -121,7 +121,7 @@ jobs:
           docker logs rslsync-smoke
           docker exec rslsync-smoke /bin/rslsync-health --check
           docker rm -fv rslsync-smoke
-          docker tag ghcr.io/ubermetroid/resilio-sync-container:latest ghcr.io/ubermetroid/resilio-sync-container:v0.3.0
+          docker tag ghcr.io/ubermetroid/resilio-sync-container:latest ghcr.io/ubermetroid/resilio-sync-container:v0.3.1
           docker push ghcr.io/ubermetroid/resilio-sync-container:latest
-          docker push ghcr.io/ubermetroid/resilio-sync-container:v0.3.0
+          docker push ghcr.io/ubermetroid/resilio-sync-container:v0.3.1
 

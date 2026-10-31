@@ -131,7 +131,7 @@
       <div class="subtitle">Resilio Sync v3 (3.1.2.1076-1) Appliance for Unraid, Synology NAS &amp; Fedora Server</div>
       <div class="badges">
         <span class="badge">Resilio Sync v3.1.2.1076-1</span>
-        <span class="badge blue">Release v0.3.0</span>
+        <span class="badge blue">Release v0.3.1</span>
         <span class="badge">Zero External Rust Crates (std only)</span>
         <span class="badge purple">#![forbid(unsafe_code)] &bull; No Shell</span>
         <span class="badge blue">GNU Guix &amp; Nix Reproducible</span>
@@ -148,7 +148,7 @@
         <a class="btn" href="#setup">60-Second Platform Setup &rarr;</a>
         <a class="btn secondary" href="https://github.com/UberMetroid/resilio-sync-container">Source on GitHub</a>
         <a class="btn secondary" href="https://github.com/UberMetroid/resilio-sync-container/pkgs/container/resilio-sync-container">GHCR Package</a>
-        <a class="btn secondary" href="https://github.com/UberMetroid/resilio-sync-container/releases/tag/v0.3.0">Release v0.3.0</a>
+        <a class="btn secondary" href="https://github.com/UberMetroid/resilio-sync-container/releases/tag/v0.3.1">Release v0.3.1</a>
       </div>
     </section>
 
@@ -198,8 +198,8 @@
         </div>
         <div class="card">
           <h3><span class="step">03</span>Clean Top-Level Share Whitelist</h3>
-          <p class="lead">Dedicated <code>/users</code>, <code>/shared</code>, <code>/other</code>, and <code>/downloads</code> roots.</p>
-          <p>Images like <code>linuxserver/resilio-sync</code> ship <code>"directory_root": "/sync/"</code> alongside <code>"files_default_path": "/downloads"</code>, causing folder creation to fail. Here, <code>webui.dir_whitelist</code> exposes <code>/users</code>, <code>/shared</code>, <code>/other</code>, and <code>/downloads</code> cleanly with <code>/downloads</code> as default.</p>
+          <p class="lead">Dedicated <code>/config</code>, <code>/users</code>, <code>/shared</code>, <code>/other</code>, and <code>/downloads</code> roots.</p>
+          <p>Images like <code>linuxserver/resilio-sync</code> ship <code>"directory_root": "/sync/"</code> alongside <code>"files_default_path": "/downloads"</code>, causing folder creation to fail. Here, <code>webui.dir_whitelist</code> (<code>["/config", "/users", "/shared", "/other", "/downloads"]</code>) exposes <code>/config</code>, <code>/users</code>, <code>/shared</code>, <code>/other</code>, and <code>/downloads</code> cleanly with <code>/downloads</code> as default.</p>
         </div>
         <div class="card">
           <h3><span class="step">04</span>NAS ACL Preservation &amp; Opt-In Ignore Seeding</h3>
@@ -330,12 +330,12 @@ sudo firewall-cmd --reload</pre>
         <div class="card">
           <h3><span class="step">02</span>Apply Your Free <code>.btskey</code> License</h3>
           <p class="lead">Preferences (Gear Icon) &rarr; License &rarr; Apply license</p>
-          <p>Upload your free Resilio Sync v3 <code>.btskey</code> file. The license and device identity are saved inside <code>/config/storage</code> and persist across container updates.</p>
+          <p>Select or upload your free Resilio Sync v3 <code>.btskey</code> file (browsing <code>/config</code> is enabled in <code>webui.dir_whitelist</code>). The license and device identity are saved inside <code>/config/storage</code> and persist across container updates.</p>
         </div>
         <div class="card">
           <h3><span class="step">03</span>Add Folders Across Your Top-Level Shares</h3>
-          <p class="lead">Folder picker whitelists <code>/users</code>, <code>/shared</code>, <code>/other</code>, and <code>/downloads</code></p>
-          <p>Defaults to <code>/downloads</code> while exposing all four top-level shares. Set <code>SEED_IGNORE_LIST=true</code> if you want NAS metadata exclusions seeded into existing <code>.sync/IgnoreList</code> files.</p>
+          <p class="lead">Folder picker whitelists <code>/config</code>, <code>/users</code>, <code>/shared</code>, <code>/other</code>, and <code>/downloads</code></p>
+          <p>Defaults to <code>/downloads</code> while exposing <code>["/config", "/users", "/shared", "/other", "/downloads"]</code>. Set <code>SEED_IGNORE_LIST=true</code> if you want NAS metadata exclusions seeded into existing <code>.sync/IgnoreList</code> files.</p>
         </div>
       </div>
     </section>
@@ -454,7 +454,7 @@ guix pack -f docker --entry-point=/bin/rslsync-init -S /bin=bin -S /etc=etc -S /
     </section>
 
     <footer>
-      resilio-sync-container v0.3.0 &bull;
+      resilio-sync-container v0.3.1 &bull;
       <a href="https://github.com/UberMetroid/resilio-sync-container">Source on GitHub</a> &bull;
       <a href="https://github.com/UberMetroid/resilio-sync-container/pkgs/container/resilio-sync-container">GHCR Image</a> &bull;
       <a href="https://github.com/UberMetroid/resilio-sync-container/releases">Releases</a> &bull;

@@ -118,7 +118,7 @@ fn test_manifests_and_multi_platform_templates() -> Result<(), Box<dyn std::erro
     assert!(ci_yml.contains("libcrypt1"));
     assert!(!ci_yml.contains("libxcrypt1"));
     assert!(ci_yml.contains("docker push ghcr.io/ubermetroid/resilio-sync-container:latest"));
-    assert!(ci_yml.contains("docker push ghcr.io/ubermetroid/resilio-sync-container:v0.3.0"));
+    assert!(ci_yml.contains("docker push ghcr.io/ubermetroid/resilio-sync-container:v0.3.1"));
 
     let readme = fs::read_to_string(workspace_root.join("README.md"))?;
     let docs_html = fs::read_to_string(workspace_root.join("docs/index.html"))?;

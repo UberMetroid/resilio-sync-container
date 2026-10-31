@@ -246,6 +246,8 @@ mod tests {
         assert!(ig.contains("@eaDir"));
         assert!(ig.contains(".Recycle.Bin"));
 
+        let rendered = render_sync_conf(&SyncEnvConfig::from_env());
+        assert!(rendered.contains("\"/config\"") && rendered.contains("\"/downloads\""));
         let _ = fs::remove_dir_all(&tmp);
     }
 }

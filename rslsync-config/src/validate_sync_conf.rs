@@ -191,7 +191,7 @@ mod tests {
         "files_default_path": "/downloads",
         "webui": {
             "listen": "0.0.0.0:8888", "allow_empty_password": false,
-            "dir_whitelist": ["/users", "/shared", "/other", "/downloads"]
+            "dir_whitelist": ["/config", "/users", "/shared", "/other", "/downloads"]
         }
     }"#;
 

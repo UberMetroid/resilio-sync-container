@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/UberMetroid/resilio-sync-container/actions/workflows/build-and-publish.yml"><img src="https://github.com/UberMetroid/resilio-sync-container/actions/workflows/build-and-publish.yml/badge.svg" alt="CI" /></a>
-  <a href="https://github.com/UberMetroid/resilio-sync-container/releases/tag/v0.3.0"><img src="https://img.shields.io/badge/release-v0.3.0-50fa7b?style=flat-square" alt="Release v0.3.0" /></a>
+  <a href="https://github.com/UberMetroid/resilio-sync-container/releases/tag/v0.3.1"><img src="https://img.shields.io/badge/release-v0.3.1-50fa7b?style=flat-square" alt="Release v0.3.1" /></a>
   <a href="https://github.com/UberMetroid/resilio-sync-container/pkgs/container/resilio-sync-container"><img src="https://img.shields.io/badge/rslsync-3.1.2.1076--1-00b4d8?style=flat-square" alt="Resilio Sync 3.1.2.1076-1" /></a>
   <a href="AGENTS.md"><img src="https://img.shields.io/badge/dependencies-zero%20(std%20only)-3fb950?style=flat-square" alt="Zero Dependencies" /></a>
   <a href="AGENTS.md"><img src="https://img.shields.io/badge/unsafe-forbidden-f85149?style=flat-square" alt="No Unsafe" /></a>
@@ -192,9 +192,9 @@ docker run -d \
 3. **Register for a free Resilio Sync v3 license key (`.btskey`):**
    - Resilio Sync v3 requires a free `.btskey` license file activated through the WebUI.
    - Request your free key from Resilio's official v3 registration page (or locate your existing `.btskey` file).
-   - In the WebUI, click the **Gear icon (Preferences)** in the top-right corner &rarr; **License** &rarr; **Apply license** and upload your `.btskey` file.
+   - In the WebUI, click the **Gear icon (Preferences)** in the top-right corner &rarr; **License** &rarr; **Apply license** and select or upload your `.btskey` file (you can also place your `.btskey` file inside `/config` on the host and browse to `/config` directly in the WebUI).
 4. **License persistence:** Your identity, peer certificates, folder database, and applied license are stored inside `/config/storage` (`settings.dat` and `storage.db`). As long as `/config` is mounted to persistent host storage, container upgrades and restarts preserve your license and peer identity automatically.
-5. **Adding folders:** The WebUI folder picker is restricted via `webui.dir_whitelist` exclusively to `/users`, `/shared`, `/other`, and `/downloads`, with `"files_default_path": "/downloads"` as the default folder destination.
+5. **Adding folders:** The WebUI folder picker is restricted via `webui.dir_whitelist` (`["/config", "/users", "/shared", "/other", "/downloads"]`) to `/config`, `/users`, `/shared`, `/other`, and `/downloads`, with `"files_default_path": "/downloads"` as the default folder destination.
 
 ---
 
@@ -222,11 +222,11 @@ If you keep the container in standard `bridge` network mode (recommended for por
 
 | Container Path | Purpose | Ownership Behavior on Startup |
 | :--- | :--- | :--- |
-| `/config` | Holds `/config/sync.conf` and `/config/storage/` (`settings.dat`, `storage.db`, `sync.pid`, `http.port`) | Created if missing; `chown -R PUID:PGID /config` is applied so `rslsync` can always read/write its SQLite state. |
+| `/config` | Holds `/config/sync.conf`, `.btskey` license files (`webui.dir_whitelist`), and `/config/storage/` (`settings.dat`, `storage.db`, `sync.pid`, `http.port`) | Created if missing; `chown -R PUID:PGID /config` is applied so `rslsync` can always read/write its SQLite state. |
 | `/users` | Top-level user home/profile sync folders (`webui.dir_whitelist`) | Created if missing; top-level `chown PUID:PGID /users` only. **Never touched by `chown -R` or `chmod -R`.** |
 | `/shared` | Top-level shared team/family folders (`webui.dir_whitelist`) | Created if missing; top-level `chown PUID:PGID /shared` only. **Never touched by `chown -R` or `chmod -R`.** |
 | `/other` | Top-level miscellaneous sync folders (`webui.dir_whitelist`) | Created if missing; top-level `chown PUID:PGID /other` only. **Never touched by `chown -R` or `chmod -R`.** |
-| `/downloads` | Top-level downloads & default sync folder path (`files_default_path`) | Created if missing; top-level `chown PUID:PGID /downloads` only. **Never touched by `chown -R` or `chmod -R`.** |
+| `/downloads` | Top-level downloads & default sync folder path (`files_default_path`, `webui.dir_whitelist`) | Created if missing; top-level `chown PUID:PGID /downloads` only. **Never touched by `chown -R` or `chmod -R`.** |
 
 ### Environment Variables
 
