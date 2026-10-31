@@ -131,7 +131,7 @@
       <div class="subtitle">Resilio Sync v3 (3.1.2.1076-1) Appliance for Unraid, Synology NAS &amp; Fedora Server</div>
       <div class="badges">
         <span class="badge">Resilio Sync v3.1.2.1076-1</span>
-        <span class="badge blue">Release v0.3.2</span>
+        <span class="badge blue">Release v0.3.3</span>
         <span class="badge">Zero External Rust Crates (std only)</span>
         <span class="badge purple">#![forbid(unsafe_code)] &bull; No Shell</span>
         <span class="badge blue">GNU Guix &amp; Nix Reproducible</span>
@@ -148,7 +148,7 @@
         <a class="btn" href="#setup">60-Second Platform Setup &rarr;</a>
         <a class="btn secondary" href="https://github.com/UberMetroid/resilio-sync-container">Source on GitHub</a>
         <a class="btn secondary" href="https://github.com/UberMetroid/resilio-sync-container/pkgs/container/resilio-sync-container">GHCR Package</a>
-        <a class="btn secondary" href="https://github.com/UberMetroid/resilio-sync-container/releases/tag/v0.3.2">Release v0.3.2</a>
+        <a class="btn secondary" href="https://github.com/UberMetroid/resilio-sync-container/releases/tag/v0.3.3">Release v0.3.3</a>
       </div>
     </section>
 
@@ -202,9 +202,9 @@
           <p>Images like <code>linuxserver/resilio-sync</code> ship <code>"directory_root": "/sync/"</code> alongside <code>"files_default_path": "/downloads"</code>, causing folder creation to fail. Here, <code>webui.dir_whitelist</code> (<code>["/config", "/users", "/shared", "/other", "/downloads"]</code>) exposes <code>/config</code>, <code>/users</code>, <code>/shared</code>, <code>/other</code>, and <code>/downloads</code> cleanly with <code>/downloads</code> as default.</p>
         </div>
         <div class="card">
-          <h3><span class="step">04</span>NAS ACL Preservation &amp; Opt-In Ignore Seeding</h3>
-          <p class="lead">Never run <code>chown -R</code> on multi-terabyte NAS shares.</p>
-          <p>Recursive <code>chown -R</code> on data mounts strips Synology DSM Btrfs <code>synoacl</code> permissions and stalls Unraid <code>shfs</code> mounts. <code>rslsync-init</code> only applies recursive ownership to <code>/config</code> and leaves your data files untouched unless you explicitly opt into <code>SEED_IGNORE_LIST=true</code>.</p>
+          <h3><span class="step">04</span>NAS ACL Preservation &amp; Automatic <code>?recycle</code> Seeding</h3>
+          <p class="lead">Never run <code>chown -R</code> on multi-terabyte NAS shares; block Recycle Bins with <code>?recycle</code>.</p>
+          <p>Recursive <code>chown -R</code> on data mounts strips Synology DSM Btrfs <code>synoacl</code> permissions and stalls Unraid <code>shfs</code> mounts. Furthermore, because Resilio Sync treats lines starting with <code>#</code> in <code>.sync/IgnoreList</code> as comments, <code>#recycle</code> is ignored as a comment! With <code>SEED_IGNORE_LIST=true</code> (default), <code>rslsync-init</code> seeds <code>?recycle</code>, <code>?snapshot</code>, <code>?SynoRecycle</code>, <code>@eaDir</code>, <code>@tmp</code>, <code>@*</code>, <code>.Recycle.Bin</code>, and <code>$RECYCLE.BIN</code> into existing <code>.sync/IgnoreList</code> files at root and up to depth 3.</p>
         </div>
       </div>
     </section>
@@ -250,7 +250,7 @@
       - WEBUI_PORT=8888
       - SYNC_PORT=55555
       - HEALTH_PORT=9198
-      - SEED_IGNORE_LIST=false
+      - SEED_IGNORE_LIST=true
       - DROP_PRIVS=true
     ports:
       - "8888:8888/tcp"
@@ -335,7 +335,7 @@ sudo firewall-cmd --reload</pre>
         <div class="card">
           <h3><span class="step">03</span>Add Folders Across Your Top-Level Shares</h3>
           <p class="lead">Folder picker whitelists <code>/config</code>, <code>/users</code>, <code>/shared</code>, <code>/other</code>, and <code>/downloads</code></p>
-          <p>Defaults to <code>/downloads</code> while exposing <code>["/config", "/users", "/shared", "/other", "/downloads"]</code>. Set <code>SEED_IGNORE_LIST=true</code> if you want NAS metadata exclusions seeded into existing <code>.sync/IgnoreList</code> files.</p>
+          <p>Defaults to <code>/downloads</code> while exposing <code>["/config", "/users", "/shared", "/other", "/downloads"]</code>. With <code>SEED_IGNORE_LIST=true</code> (default), NAS Recycle Bin and <code>@eaDir</code> exclusions are seeded into existing <code>.sync/IgnoreList</code> files automatically.</p>
         </div>
       </div>
     </section>
@@ -382,7 +382,7 @@ sudo firewall-cmd --reload</pre>
 
     <section id="config">
       <div class="section-head">
-        <h2>Environment Variables, Hot Reload &amp; Health Telemetry</h2>
+        <h2>Environment Variables, <code>.sync/IgnoreList</code> Rules &amp; Health Telemetry</h2>
         <p>Configure on first boot with environment variables, or edit <code>/config/sync.conf</code> live &mdash; <code>rslsync-init</code> validates changes every 5 seconds with <code>rslsync-config</code> before restarting the daemon.</p>
       </div>
       <div class="grid-2">
@@ -400,15 +400,35 @@ sudo firewall-cmd --reload</pre>
               <tr><td><code>SYNC_PORT</code></td><td><code>55555</code></td><td>P2P TCP/UDP listening port (<code>1024..=65535</code>)</td></tr>
               <tr><td><code>HEALTH_PORT</code></td><td><code>9198</code></td><td>Health HTTP server port (<code>:9198/status</code>)</td></tr>
               <tr><td><code>HEALTH_BIND</code></td><td><code>0.0.0.0</code></td><td>Health bind IP (use <code>127.0.0.1</code> in host net mode)</td></tr>
-              <tr><td><code>SEED_IGNORE_LIST</code></td><td><code>false</code></td><td>Opt-in (<code>SEED_IGNORE_LIST=true</code>): seed NAS metadata exclusions into <code>.sync/IgnoreList</code></td></tr>
+              <tr><td><code>SEED_IGNORE_LIST</code></td><td><code>true</code></td><td>Enabled by default (<code>SEED_IGNORE_LIST=true</code>; set <code>false</code> to disable): seeds <code>?recycle</code>, <code>?snapshot</code>, <code>@eaDir</code>, <code>@*</code>, <code>.Recycle.Bin</code>, and <code>$RECYCLE.BIN</code> into <code>.sync/IgnoreList</code> up to depth 3</td></tr>
               <tr><td><code>DROP_PRIVS</code></td><td><code>true</code></td><td>Drop from <code>root</code> to <code>PUID:PGID</code> via <code>setpriv</code></td></tr>
             </tbody>
           </table>
         </div>
 
         <div class="card">
-          <h3>Live Telemetry &amp; Pre-Flight Validation</h3>
-          <p class="lead">Query <code>:9198/status</code> from any monitoring tool or dashboard:</p>
+          <h3>Why <code>?recycle</code> &amp; <code>@*</code> Are Needed in <code>.sync/IgnoreList</code></h3>
+          <p class="lead">Resilio Sync treats any line starting with <code>#</code> in <code>.sync/IgnoreList</code> as a comment!</p>
+          <p>Writing <code>#recycle</code>, <code>#snapshot</code>, or <code>#SynoRecycle</code> at the start of a line causes Resilio Sync to ignore the rule as a comment and sync your Synology Recycle Bin across all peers. Using <code>?recycle</code>, <code>?snapshot</code>, and <code>?SynoRecycle</code> (where the <code>?</code> wildcard matches <code>#</code> without starting the line with <code>#</code>) alongside <code>@eaDir</code>, <code>@tmp</code>, <code>@SynoResource</code>, <code>@*</code>, <code>.Recycle.Bin</code>, and <code>$RECYCLE.BIN</code> properly excludes Recycle Bins and Synology metadata:</p>
+<pre>?recycle
+?snapshot
+?SynoRecycle
+@eaDir
+@tmp
+@SynoResource
+@*
+.SynologyWorkingDirectory
+.Recycle.Bin
+$RECYCLE.BIN
+$Recycle.Bin
+.fuse_hidden*
+.Trash-*</pre>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top: 1.15rem;">
+        <h3>Live Telemetry &amp; Pre-Flight Validation</h3>
+        <p class="lead">Query <code>:9198/status</code> from any monitoring tool or dashboard, or validate <code>/config/sync.conf</code> via CLI:</p>
 <pre>$ curl -s http://localhost:9198/status
 {
   "status": "healthy",
@@ -420,11 +440,9 @@ sudo firewall-cmd --reload</pre>
   "sync_port": 55555,
   "inotify_max_watches": 524288,
   "uptime_seconds": 86420
-}</pre>
-          <p class="lead">Test health or validate <code>/config/sync.conf</code> via CLI:</p>
-<pre>docker exec resilio-sync /bin/rslsync-health --check
-docker exec resilio-sync /bin/rslsync-config --config /config/sync.conf</pre>
-        </div>
+}
+$ docker exec resilio-sync /bin/rslsync-health --check
+$ docker exec resilio-sync /bin/rslsync-config --config /config/sync.conf</pre>
       </div>
     </section>
 
@@ -454,7 +472,7 @@ guix pack -f docker --entry-point=/bin/rslsync-init -S /bin=bin -S /etc=etc -S /
     </section>
 
     <footer>
-      resilio-sync-container v0.3.2 &bull;
+      resilio-sync-container v0.3.3 &bull;
       <a href="https://github.com/UberMetroid/resilio-sync-container">Source on GitHub</a> &bull;
       <a href="https://github.com/UberMetroid/resilio-sync-container/pkgs/container/resilio-sync-container">GHCR Image</a> &bull;
       <a href="https://github.com/UberMetroid/resilio-sync-container/releases">Releases</a> &bull;

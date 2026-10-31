@@ -1,11 +1,21 @@
 # UBERMETROID_NAS_METADATA_IGNORES
 # Safe OS & NAS metadata exclusions for Synology DSM, Unraid, and Fedora Server
-@eaDir
-@tmp
+# Note: Resilio Sync treats lines starting with '#' as comments, so '?recycle',
+# '?snapshot', and '?SynoRecycle' use '?' wildcard to match '#' at line start.
+?recycle
+?snapshot
+?SynoRecycle
 #recycle
 #snapshot
+#SynoRecycle
+@eaDir
+@tmp
+@SynoResource
+@*
 .SynologyWorkingDirectory
 .Recycle.Bin
+$RECYCLE.BIN
+$Recycle.Bin
 .fuse_hidden*
 .Trash-*
 .DS_Store

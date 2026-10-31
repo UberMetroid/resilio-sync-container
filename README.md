@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/UberMetroid/resilio-sync-container/actions/workflows/build-and-publish.yml"><img src="https://github.com/UberMetroid/resilio-sync-container/actions/workflows/build-and-publish.yml/badge.svg" alt="CI" /></a>
-  <a href="https://github.com/UberMetroid/resilio-sync-container/releases/tag/v0.3.2"><img src="https://img.shields.io/badge/release-v0.3.2-50fa7b?style=flat-square" alt="Release v0.3.2" /></a>
+  <a href="https://github.com/UberMetroid/resilio-sync-container/releases/tag/v0.3.3"><img src="https://img.shields.io/badge/release-v0.3.3-50fa7b?style=flat-square" alt="Release v0.3.3" /></a>
   <a href="https://github.com/UberMetroid/resilio-sync-container/pkgs/container/resilio-sync-container"><img src="https://img.shields.io/badge/rslsync-3.1.2.1076--1-00b4d8?style=flat-square" alt="Resilio Sync 3.1.2.1076-1" /></a>
   <a href="AGENTS.md"><img src="https://img.shields.io/badge/dependencies-zero%20(std%20only)-3fb950?style=flat-square" alt="Zero Dependencies" /></a>
   <a href="AGENTS.md"><img src="https://img.shields.io/badge/unsafe-forbidden-f85149?style=flat-square" alt="No Unsafe" /></a>
@@ -42,7 +42,7 @@ In late 2024, Resilio made **Resilio Sync v3** (`3.x`) completely free for perso
 | **Broken `sync.conf` edits or typos** | Strips `//` and `/* */` comments outside JSON string literals, parses `/config/sync.conf` with a strict recursive-descent JSON parser, checks every key against the Resilio Sync v3 key whitelist, verifies `files_default_path` (`/downloads`) resides inside `directory_root` (`/`) and allowed data roots (`/users`, `/shared`, `/other`, `/downloads`), and checks for port collisions across `webui.listen`, `listening_port`, and `HEALTH_PORT` (`9198`). If a live edit is invalid, `rslsync-init` logs the exact error and keeps the running daemon alive. | `rslsync-config` + `rslsync-init` |
 | **NAS ACL destruction & array stalls** | Applies recursive ownership (`chown -R`) strictly to `/config`. **Never runs `chown -R` or `chmod -R` on `/users`, `/shared`, `/other`, or `/downloads`**, preserving Synology `synoacl` inheritance and Unraid `shfs` responsiveness. | `rslsync-init` |
 | **Arbitrary host `PUID`/`PGID` crashes** | Synthesizes matching `/etc/passwd` and `/etc/group` entries at startup for any runtime `PUID`/`PGID` (`99:100` Unraid, `1026:100` Synology, `1000:1000` Fedora) so glibc `getpwuid()` inside `rslsync` always resolves cleanly. | `rslsync-init` |
-| **NAS metadata synced across peers** | Optional opt-in (`SEED_IGNORE_LIST=false` by default; set `SEED_IGNORE_LIST=true` to enable) seeds `@eaDir`, `@tmp`, `#recycle`, `#snapshot`, `.SynologyWorkingDirectory`, `.Recycle.Bin`, `.fuse_hidden*`, `.Trash-*`, `.DS_Store`, and `Thumbs.db` into existing `.sync/IgnoreList` files under `/users`, `/shared`, `/other`, and `/downloads`. | `rslsync-init` |
+| **NAS Recycle Bin & `@eaDir` synced across peers** | Enabled by default (`SEED_IGNORE_LIST=true`; set `SEED_IGNORE_LIST=false` to disable): seeds `?recycle`, `?snapshot`, `?SynoRecycle` (using `?` wildcard because `#` at the start of a line is a comment in `.sync/IgnoreList`), `@eaDir`, `@tmp`, `@SynoResource`, `@*`, `.SynologyWorkingDirectory`, `.Recycle.Bin`, `$RECYCLE.BIN`, `.fuse_hidden*`, `.Trash-*`, `.DS_Store`, and `Thumbs.db` into existing `.sync/IgnoreList` files at root and up to depth 3 under `/users`, `/shared`, `/other`, and `/downloads`. | `rslsync-init` |
 | **SQLite database corruption on stop** | Intercepts container stop requests and gives `rslsync` a 10-second `SIGTERM` window to checkpoint `/config/storage/storage.db-wal` cleanly before exit. | `rslsync-init` |
 | **ELF stripping breaks embedded WebUI** | Preserves the 17.4 MB WebUI ZIP archive appended to the `rslsync` ELF binary (`dontStrip = true` in Nix; `patchelf --set-interpreter` / `--set-rpath` only in Guix). | `manifest.scm` & `flake.nix` |
 
@@ -109,7 +109,7 @@ services:
       - WEBUI_PORT=8888
       - SYNC_PORT=55555
       - HEALTH_PORT=9198
-      - SEED_IGNORE_LIST=false
+      - SEED_IGNORE_LIST=true
       - DROP_PRIVS=true
     ports:
       - "8888:8888/tcp"
@@ -129,7 +129,7 @@ services:
       retries: 3
 ```
 
-Because `rslsync-init` never runs `chown -R` or `chmod -R` on `/users`, `/shared`, `/other`, or `/downloads`, your Synology Btrfs `synoacl` permissions remain untouched. Set `SEED_IGNORE_LIST=true` if you want `@eaDir`, `#recycle`, and `#snapshot` seeded into `.sync/IgnoreList` automatically.
+Because `rslsync-init` never runs `chown -R` or `chmod -R` on `/users`, `/shared`, `/other`, or `/downloads`, your Synology Btrfs `synoacl` permissions remain untouched. With `SEED_IGNORE_LIST=true` (the default), `?recycle`, `?snapshot`, `?SynoRecycle`, `@eaDir`, `@tmp`, `@*`, `.Recycle.Bin`, and `$RECYCLE.BIN` are automatically seeded into `.sync/IgnoreList` across top-level and nested shares.
 
 ---
 
@@ -240,9 +240,43 @@ If you keep the container in standard `bridge` network mode (recommended for por
 | `SYNC_PORT` | `55555` | P2P TCP/UDP listening port rendered into `/config/sync.conf` (`1024..=65535`). |
 | `HEALTH_PORT` | `9198` | HTTP listening port for `rslsync-health` (`GET /status`). Must not collide with `WEBUI_PORT` or `SYNC_PORT`. |
 | `HEALTH_BIND` | `0.0.0.0` | Bind address for `rslsync-health` (set to `127.0.0.1` for loopback-only access in `--network=host` mode). |
-| `SEED_IGNORE_LIST` | `false` | Opt-in (`SEED_IGNORE_LIST=true` to enable): seed NAS/OS metadata exclusions (`@eaDir`, `#recycle`, `.Recycle.Bin`, etc.) into existing `.sync/IgnoreList` files under `/users`, `/shared`, `/other`, and `/downloads`. |
+| `SEED_IGNORE_LIST` | `true` | Enabled by default (`SEED_IGNORE_LIST=true`; set `SEED_IGNORE_LIST=false` to disable): seeds NAS/OS metadata exclusions (`?recycle`, `?snapshot`, `?SynoRecycle`, `@eaDir`, `@tmp`, `@*`, `.Recycle.Bin`, `$RECYCLE.BIN`, etc.) into existing `.sync/IgnoreList` files at root and up to depth 3 under `/users`, `/shared`, `/other`, and `/downloads`. |
 | `DROP_PRIVS` | `true` | Drop privileges from `root` to `PUID:PGID` via `setpriv --reuid --regid --clear-groups` before spawning `rslsync`. |
 | `SYNC_CONF_PATH` | `/config/sync.conf` | Path to the active Resilio Sync JSON configuration file. |
+
+### NAS Recycle Bin & Synology `@` Folder Exclusion Rules (`.sync/IgnoreList`)
+
+> **Why `?recycle` is required instead of `#recycle`:** Resilio Sync treats any line starting with `#` in `.sync/IgnoreList` as a **comment**. Writing `#recycle`, `#snapshot`, or `#SynoRecycle` at the start of a line causes Resilio Sync to ignore the rule as a comment and sync your Synology Recycle Bin across all peers! Using `?recycle`, `?snapshot`, and `?SynoRecycle` (where the `?` single-character wildcard matches `#` without starting the line with `#`) together with `@*` (`@eaDir`, `@tmp`, `@SynoResource`), `.Recycle.Bin`, and `$RECYCLE.BIN` properly blocks Recycle Bins and Synology system directories.
+
+When `SEED_IGNORE_LIST=true` (the default), `rslsync-init` automatically seeds [`assets/default-IgnoreList`](assets/default-IgnoreList) into every existing `.sync/IgnoreList` at each share root (`/users/.sync`, `/shared/.sync`, `/other/.sync`, `/downloads/.sync`) and up to 3 directory levels deep (e.g., `/users/<user>/.sync` and `/users/<user>/Desktop/.sync`):
+
+```gitignore
+# UBERMETROID_NAS_METADATA_IGNORES
+# Note: Resilio Sync treats lines starting with '#' as comments, so '?recycle',
+# '?snapshot', and '?SynoRecycle' use '?' wildcard to match '#' at line start.
+?recycle
+?snapshot
+?SynoRecycle
+#recycle
+#snapshot
+#SynoRecycle
+@eaDir
+@tmp
+@SynoResource
+@*
+.SynologyWorkingDirectory
+.Recycle.Bin
+$RECYCLE.BIN
+$Recycle.Bin
+.fuse_hidden*
+.Trash-*
+.DS_Store
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+```
 
 ### Live `/config/sync.conf` Editing & Hot Reload
 `rslsync-init` only generates `/config/sync.conf` if it does not already exist (or is empty). Thereafter, your custom edits to `/config/sync.conf` are preserved across restarts.

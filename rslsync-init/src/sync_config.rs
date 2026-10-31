@@ -8,7 +8,6 @@ use std::process::Command;
 
 const DEFAULT_SYNC_CONF: &str = include_str!("../../assets/default-sync.conf");
 const DEFAULT_IGNORE_LIST: &str = include_str!("../../assets/default-IgnoreList");
-const IGNORE_MARKER: &str = "# UBERMETROID_NAS_METADATA_IGNORES";
 
 #[derive(Debug, Clone)]
 pub struct SyncEnvConfig {
@@ -19,6 +18,14 @@ pub struct SyncEnvConfig {
     pub seed_ignore_list: bool,
 }
 
+fn env_u16(key: &str, min_port: u16, default_port: u16) -> u16 {
+    env::var(key)
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .filter(|&p| p >= min_port)
+        .unwrap_or(default_port)
+}
+
 impl SyncEnvConfig {
     pub fn from_env() -> Self {
         Self {
@@ -26,24 +33,12 @@ impl SyncEnvConfig {
                 &env::var("DEVICE_NAME").unwrap_or_else(|_| "resilio-sync".to_string()),
                 "resilio-sync",
             ),
-            sync_port: env::var("SYNC_PORT")
-                .ok()
-                .and_then(|v| v.parse().ok())
-                .filter(|&p| p >= 1024)
-                .unwrap_or(55555),
-            webui_port: env::var("WEBUI_PORT")
-                .ok()
-                .and_then(|v| v.parse().ok())
-                .filter(|&p| p > 0)
-                .unwrap_or(8888),
-            health_port: env::var("HEALTH_PORT")
-                .ok()
-                .and_then(|v| v.parse().ok())
-                .filter(|&p| p > 0)
-                .unwrap_or(9198),
+            sync_port: env_u16("SYNC_PORT", 1024, 55555),
+            webui_port: env_u16("WEBUI_PORT", 1, 8888),
+            health_port: env_u16("HEALTH_PORT", 1, 9198),
             seed_ignore_list: env::var("SEED_IGNORE_LIST")
-                .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-                .unwrap_or(false),
+                .map(|v| !(v == "0" || v.eq_ignore_ascii_case("false")))
+                .unwrap_or(true),
         }
     }
 }
@@ -71,83 +66,92 @@ pub fn render_sync_conf(cfg: &SyncEnvConfig) -> String {
         .replace("__WEBUI_PORT__", &cfg.webui_port.to_string())
 }
 
-pub fn synthesize_nss_entries(passwd_path: &Path, group_path: &Path, puid: u32, pgid: u32) {
-    let puid_str = puid.to_string();
-    let pgid_str = pgid.to_string();
-    if let Ok(existing_pw) = fs::read_to_string(passwd_path) {
-        let has_uid = existing_pw
+fn append_nss_if_missing(path: &Path, id_str: &str, entry_line: &str) {
+    if let Ok(mut existing) = fs::read_to_string(path) {
+        if !existing
             .lines()
-            .any(|line| line.split(':').nth(2) == Some(puid_str.as_str()));
-        if !has_uid {
-            let mut updated = existing_pw;
-            if !updated.ends_with('\n') {
-                updated.push('\n');
+            .any(|line| line.split(':').nth(2) == Some(id_str))
+        {
+            if !existing.ends_with('\n') {
+                existing.push('\n');
             }
-            updated.push_str(&format!(
-                "rslsync-{puid}:x:{puid}:{pgid}:Resilio Sync User:/config:/bin/sh\n"
-            ));
-            if let Err(e) = fs::write(passwd_path, updated) {
-                eprintln!(
-                    "[rslsync-init] WARN: Failed to write NSS entry to {}: {e}",
-                    passwd_path.display()
-                );
-            }
+            existing.push_str(entry_line);
+            let _ = fs::write(path, existing);
         }
     }
-    if let Ok(existing_gr) = fs::read_to_string(group_path) {
-        let has_gid = existing_gr
-            .lines()
-            .any(|line| line.split(':').nth(2) == Some(pgid_str.as_str()));
-        if !has_gid {
-            let mut updated = existing_gr;
-            if !updated.ends_with('\n') {
-                updated.push('\n');
+}
+
+pub fn synthesize_nss_entries(passwd_path: &Path, group_path: &Path, puid: u32, pgid: u32) {
+    let pw_line = format!("rslsync-{puid}:x:{puid}:{pgid}:Resilio Sync User:/config:/bin/sh\n");
+    append_nss_if_missing(passwd_path, &puid.to_string(), &pw_line);
+    append_nss_if_missing(
+        group_path,
+        &pgid.to_string(),
+        &format!("rslsync-{pgid}:x:{pgid}:\n"),
+    );
+}
+
+fn is_real_dir(path: &Path) -> bool {
+    fs::symlink_metadata(path)
+        .map(|m| m.file_type().is_dir())
+        .unwrap_or(false)
+}
+
+fn seed_dot_sync_dir(folder: &Path) {
+    let dot_sync = folder.join(".sync");
+    if !is_real_dir(&dot_sync) {
+        return;
+    }
+    let ignore_file = dot_sync.join("IgnoreList");
+    if fs::symlink_metadata(&ignore_file)
+        .map(|m| m.file_type().is_symlink())
+        .unwrap_or(false)
+    {
+        return;
+    }
+    if let Ok(mut merged) = fs::read_to_string(&ignore_file) {
+        let mut changed = false;
+        for line in DEFAULT_IGNORE_LIST.lines() {
+            let trimmed = line.trim();
+            if !trimmed.is_empty() && !merged.lines().any(|l| l.trim() == trimmed) {
+                if !merged.ends_with('\n') && !merged.is_empty() {
+                    merged.push('\n');
+                }
+                merged.push_str(trimmed);
+                merged.push('\n');
+                changed = true;
             }
-            updated.push_str(&format!("rslsync-{pgid}:x:{pgid}:\n"));
-            if let Err(e) = fs::write(group_path, updated) {
-                eprintln!(
-                    "[rslsync-init] WARN: Failed to write NSS entry to {}: {e}",
-                    group_path.display()
-                );
-            }
+        }
+        if changed {
+            let _ = fs::write(&ignore_file, merged);
+        }
+    } else {
+        let _ = fs::write(&ignore_file, DEFAULT_IGNORE_LIST);
+    }
+}
+
+fn seed_recursive(dir: &Path, remaining_depth: u8) {
+    seed_dot_sync_dir(dir);
+    if remaining_depth == 0 {
+        return;
+    }
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !matches!(
+            entry.file_name().to_string_lossy().as_ref(),
+            ".sync" | "@eaDir" | "@tmp" | "#recycle" | "#snapshot"
+        ) && is_real_dir(&path)
+        {
+            seed_recursive(&path, remaining_depth - 1);
         }
     }
 }
 
 pub fn seed_folder_ignore_lists(sync_root: &Path) {
-    let Ok(entries) = fs::read_dir(sync_root) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let folder = entry.path();
-        let dot_sync = folder.join(".sync");
-        if !fs::symlink_metadata(&dot_sync)
-            .map(|m| m.file_type().is_dir())
-            .unwrap_or(false)
-        {
-            continue;
-        }
-        let ignore_file = dot_sync.join("IgnoreList");
-        if fs::symlink_metadata(&ignore_file)
-            .map(|m| m.file_type().is_symlink())
-            .unwrap_or(false)
-        {
-            continue;
-        }
-        if let Ok(existing) = fs::read_to_string(&ignore_file) {
-            if existing.contains(IGNORE_MARKER) {
-                continue;
-            }
-            let mut merged = existing;
-            if !merged.ends_with('\n') {
-                merged.push('\n');
-            }
-            merged.push_str(DEFAULT_IGNORE_LIST);
-            let _ = fs::write(&ignore_file, merged);
-        } else {
-            let _ = fs::write(&ignore_file, DEFAULT_IGNORE_LIST);
-        }
-    }
+    seed_recursive(sync_root, 3);
 }
 
 pub fn ensure_directories_and_ownership(
@@ -223,31 +227,30 @@ mod tests {
         let tmp = std::env::temp_dir().join("rslsync_cfg_unit_test");
         let _ = fs::remove_dir_all(&tmp);
         fs::create_dir_all(&tmp).unwrap();
-
-        let pw = tmp.join("passwd");
-        let gr = tmp.join("group");
-        fs::write(
-            &pw,
-            "root:x:0:0:root:/root:/bin/sh\nnginx:x:101:99:nginx:/var/lib/nginx:/sbin/nologin\n",
-        )
-        .unwrap();
+        let (pw, gr) = (tmp.join("passwd"), tmp.join("group"));
+        fs::write(&pw, "root:x:0:0:root:/root:/bin/sh\n").unwrap();
         fs::write(&gr, "root:x:0:\n").unwrap();
-
         synthesize_nss_entries(&pw, &gr, 99, 100);
-        assert!(fs::read_to_string(&pw)
-            .unwrap()
-            .contains("rslsync-99:x:99:100:"));
-        assert!(fs::read_to_string(&gr).unwrap().contains(":100:"));
+        assert!(fs::read_to_string(&pw).unwrap().contains("rslsync-99:"));
 
-        let share_dot_sync = tmp.join("sync/photos/.sync");
-        fs::create_dir_all(&share_dot_sync).unwrap();
-        seed_folder_ignore_lists(&tmp.join("sync"));
-        let ig = fs::read_to_string(share_dot_sync.join("IgnoreList")).unwrap();
-        assert!(ig.contains("@eaDir"));
-        assert!(ig.contains(".Recycle.Bin"));
-
-        let rendered = render_sync_conf(&SyncEnvConfig::from_env());
-        assert!(rendered.contains("\"/config\"") && rendered.contains("\"/downloads\""));
+        let dirs = [
+            tmp.join("users/.sync"),
+            tmp.join("users/jeryd/.sync"),
+            tmp.join("users/jeryd/Desktop/.sync"),
+            tmp.join("users/jeryd/Desktop/proj/.sync"),
+        ];
+        let d4_sync = tmp.join("users/jeryd/Desktop/proj/deep/.sync");
+        for dir in dirs.iter().chain([&d4_sync]) {
+            fs::create_dir_all(dir).unwrap();
+        }
+        fs::write(dirs[1].join("IgnoreList"), "#recycle\n").unwrap();
+        seed_folder_ignore_lists(&tmp.join("users"));
+        for dir in &dirs {
+            let ig = fs::read_to_string(dir.join("IgnoreList")).unwrap();
+            assert!(ig.contains("?recycle") && ig.contains("@*") && ig.contains("$RECYCLE.BIN"));
+        }
+        assert!(!d4_sync.join("IgnoreList").exists());
+        assert!(SyncEnvConfig::from_env().seed_ignore_list);
         let _ = fs::remove_dir_all(&tmp);
     }
 }

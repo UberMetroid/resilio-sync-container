@@ -1,4 +1,4 @@
-# Synology DSM 7.2+ Container Manager Project Compose File (v0.3.2)
+# Synology DSM 7.2+ Container Manager Project Compose File (v0.3.3)
 # Before starting on Synology DSM, raise kernel inotify watches via Control Panel -> Task Scheduler (Triggered Task -> Boot-up as root):
 #   sysctl -w fs.inotify.max_user_watches=524288
 services:
@@ -18,7 +18,7 @@ services:
       - WEBUI_PORT=8888
       - SYNC_PORT=55555
       - HEALTH_PORT=9198
-      - SEED_IGNORE_LIST=false
+      - SEED_IGNORE_LIST=true
       - DROP_PRIVS=true
     ports:
       - "8888:8888/tcp"

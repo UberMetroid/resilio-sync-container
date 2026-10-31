@@ -1,6 +1,6 @@
 [package]
 name = "rslsync-health"
-version = "0.3.2"
+version = "0.3.3"
 edition = "2021"
 license = "MIT"
 description = "Zero-dependency Resilio Sync v3 dynamic port health probe and :9198/status server"

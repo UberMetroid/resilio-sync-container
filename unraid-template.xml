@@ -9,7 +9,7 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/UberMetroid/resilio-sync-container</Support>
   <Project>https://github.com/UberMetroid/resilio-sync-container</Project>
-  <Overview>Resilio Sync v3 (v0.3.2): Hardened, reproducible GNU Guix / Nix + zero-dependency Rust Resilio Sync v3 (3.1.2.1076) P2P synchronization appliance for Unraid, Synology NAS, and Fedora Server. Features fail-closed JSON &amp; v3 key-whitelist validation, live http.port health probing, top-level /config, /users, /shared, /other, and /downloads mounts, and non-recursive data ACL preservation.</Overview>
+  <Overview>Resilio Sync v3 (v0.3.3): Hardened, reproducible GNU Guix / Nix + zero-dependency Rust Resilio Sync v3 (3.1.2.1076) P2P synchronization appliance for Unraid, Synology NAS, and Fedora Server. Features fail-closed JSON &amp; v3 key-whitelist validation, live http.port health probing, top-level /config, /users, /shared, /other, and /downloads mounts, automatic ?recycle &amp; @eaDir IgnoreList seeding, and non-recursive data ACL preservation.</Overview>
   <Category>Backup: Cloud: Network:Other</Category>
   <WebUI>http://[IP]:[PORT:8888]/gui/</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/UberMetroid/resilio-sync-container/main/unraid-template.xml</TemplateURL>
@@ -30,7 +30,7 @@
   <Config Name="Other Share Path" Target="/other" Default="/mnt/user/other" Mode="rw" Description="Top-level /other directory (never touched by recursive chown/chmod)" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/other</Config>
   <Config Name="Downloads Share Path" Target="/downloads" Default="/mnt/user/downloads" Mode="rw" Description="Top-level /downloads directory and default folder destination (never touched by recursive chown/chmod)" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/downloads</Config>
   <Config Name="Device Name" Target="DEVICE_NAME" Default="unraid-resilio-sync" Mode="" Description="Device name displayed to Resilio Sync peers and WebUI" Type="Variable" Display="always" Required="false" Mask="false">unraid-resilio-sync</Config>
-  <Config Name="Seed NAS Metadata IgnoreList" Target="SEED_IGNORE_LIST" Default="false" Mode="" Description="Opt-in: seed NAS/OS metadata exclusions (@eaDir, #recycle, .Recycle.Bin, .Trash-*) into existing .sync/IgnoreList files" Type="Variable" Display="advanced" Required="false" Mask="false">false</Config>
+  <Config Name="Seed NAS Metadata IgnoreList" Target="SEED_IGNORE_LIST" Default="true" Mode="" Description="Seed NAS/OS metadata exclusions (?recycle, ?snapshot, @eaDir, @tmp, @*, .Recycle.Bin, $RECYCLE.BIN) into existing .sync/IgnoreList files" Type="Variable" Display="advanced" Required="false" Mask="false">true</Config>
   <Config Name="Drop Privileges" Target="DROP_PRIVS" Default="true" Mode="" Description="Run rslsync as unprivileged PUID/PGID via setpriv" Type="Variable" Display="advanced" Required="false" Mask="false">true</Config>
   <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="Unprivileged user UID (Unraid nobody=99)" Type="Variable" Display="advanced" Required="false" Mask="false">99</Config>
   <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="Unprivileged group GID (Unraid users=100)" Type="Variable" Display="advanced" Required="false" Mask="false">100</Config>

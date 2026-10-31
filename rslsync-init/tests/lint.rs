@@ -120,7 +120,38 @@ fn test_manifests_and_multi_platform_templates() -> Result<(), Box<dyn std::erro
     assert!(ci_yml.contains("x86_64-unknown-linux-musl"));
     assert!(ci_yml.contains("relocation-model=static"));
     assert!(ci_yml.contains("docker push ghcr.io/ubermetroid/resilio-sync-container:latest"));
-    assert!(ci_yml.contains("docker push ghcr.io/ubermetroid/resilio-sync-container:v0.3.2"));
+    assert!(ci_yml.contains("docker push ghcr.io/ubermetroid/resilio-sync-container:v0.3.3"));
+
+    let default_ignore = fs::read_to_string(workspace_root.join("assets/default-IgnoreList"))?;
+    for pat in [
+        "?recycle",
+        "?snapshot",
+        "?SynoRecycle",
+        "#recycle",
+        "#snapshot",
+        "#SynoRecycle",
+        "@eaDir",
+        "@tmp",
+        "@SynoResource",
+        "@*",
+        ".SynologyWorkingDirectory",
+        ".Recycle.Bin",
+        "$RECYCLE.BIN",
+        "$Recycle.Bin",
+        ".fuse_hidden*",
+        ".Trash-*",
+        ".DS_Store",
+        ".Spotlight-V100",
+        ".Trashes",
+        "ehthumbs.db",
+        "Thumbs.db",
+        "desktop.ini",
+    ] {
+        assert!(
+            default_ignore.lines().any(|l| l.trim() == pat),
+            "assets/default-IgnoreList missing pattern: {pat}"
+        );
+    }
 
     let readme = fs::read_to_string(workspace_root.join("README.md"))?;
     let docs_html = fs::read_to_string(workspace_root.join("docs/index.html"))?;
@@ -146,6 +177,10 @@ fn test_manifests_and_multi_platform_templates() -> Result<(), Box<dyn std::erro
             ".btskey",
             "9198",
             "SEED_IGNORE_LIST=true",
+            "?recycle",
+            "@eaDir",
+            "@*",
+            "$RECYCLE.BIN",
             "31b623897fef0682b97f6274d124a7d7003c5d0db47f3fe3407a5c45258fbcbb",
         ] {
             assert!(
