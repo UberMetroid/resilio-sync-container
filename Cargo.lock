@@ -4,12 +4,12 @@ version = 4
 
 [[package]]
 name = "rslsync-config"
-version = "0.1.0"
+version = "0.2.0"
 
 [[package]]
 name = "rslsync-health"
-version = "0.1.0"
+version = "0.2.0"
 
 [[package]]
 name = "rslsync-init"
-version = "0.1.0"
+version = "0.2.0"

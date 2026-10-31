@@ -118,7 +118,7 @@ fn test_manifests_and_multi_platform_templates() -> Result<(), Box<dyn std::erro
     assert!(ci_yml.contains("libcrypt1"));
     assert!(!ci_yml.contains("libxcrypt1"));
     assert!(ci_yml.contains("docker push ghcr.io/ubermetroid/resilio-sync-container:latest"));
-    assert!(ci_yml.contains("docker push ghcr.io/ubermetroid/resilio-sync-container:v0.1.0"));
+    assert!(ci_yml.contains("docker push ghcr.io/ubermetroid/resilio-sync-container:v0.2.0"));
 
     Ok(())
 }
