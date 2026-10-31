@@ -202,7 +202,7 @@ Understanding how Resilio Sync discovers peers and transfers data saves hours of
 
 ### How to Get Full LAN Speeds in Bridge Mode (Without `--network=host`)
 If you keep the container in standard `bridge` network mode (recommended for port isolation):
-1. **Tracker / Relay-Assisted Handshake:** If your peers have internet access,Resilio's tracker exchanges each peer's local RFC1918 LAN IP (`192.168.x.x:55555`), allowing peers on the same LAN to connect directly to `<nas-lan-ip>:55555` over TCP/UDP at full gigabit/10GbE speeds.
+1. **Tracker / Relay-Assisted Handshake:** If your peers have internet access, Resilio's tracker exchanges each peer's local RFC1918 LAN IP (`192.168.x.x:55555`), allowing peers on the same LAN to connect directly to `<nas-lan-ip>:55555` over TCP/UDP at full gigabit/10GbE speeds.
 2. **Predefined Hosts (Air-Gapped / Trackerless LAN):** In the WebUI, right-click a synced folder &rarr; **Preferences** &rarr; check **Use predefined hosts** &rarr; add your NAS LAN IP and port (`192.168.1.50:55555`). Or run with `--network=host` (and `-e HEALTH_BIND=127.0.0.1`) so `239.192.0.0:3838/udp` multicast works automatically on your LAN.
 
 ---

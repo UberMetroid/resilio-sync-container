@@ -143,6 +143,8 @@ fn test_manifests_and_multi_platform_templates() -> Result<(), Box<dyn std::erro
             "unraid-template.xml",
             ".btskey",
             "9198",
+            "SEED_IGNORE_LIST=true",
+            "31b623897fef0682b97f6274d124a7d7003c5d0db47f3fe3407a5c45258fbcbb",
         ] {
             assert!(
                 doc.contains(required),

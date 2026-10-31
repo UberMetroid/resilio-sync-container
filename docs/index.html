@@ -236,13 +236,21 @@
   resilio-sync:
     image: ghcr.io/ubermetroid/resilio-sync-container:latest
     container_name: resilio-sync
+    hostname: synology-resilio-sync
     restart: unless-stopped
-    security_opt: ["no-new-privileges:true"]
+    entrypoint: ["/bin/rslsync-init"]
+    security_opt:
+      - no-new-privileges:true
     environment:
       - PUID=1026
       - PGID=100
       - UMASK=002
       - DEVICE_NAME=synology-resilio-sync
+      - WEBUI_PORT=8888
+      - SYNC_PORT=55555
+      - HEALTH_PORT=9198
+      - SEED_IGNORE_LIST=true
+      - DROP_PRIVS=true
     ports:
       - "8888:8888/tcp"
       - "55555:55555/tcp"
@@ -250,7 +258,12 @@
       - "127.0.0.1:9198:9198/tcp"
     volumes:
       - /volume1/docker/resilio-sync/config:/config:rw
-      - /volume1/sync:/sync:rw</pre>
+      - /volume1/sync:/sync:rw
+    healthcheck:
+      test: ["CMD", "/bin/rslsync-health", "--check"]
+      interval: 30s
+      timeout: 5s
+      retries: 3</pre>
         </div>
 
         <div class="card">
@@ -426,6 +439,9 @@ docker load &lt; result
 # 3. Or pack with GNU Guix (manifest.scm)
 RUSTFLAGS="-C target-feature=+crt-static" cargo build --release --workspace --target x86_64-unknown-linux-gnu
 mkdir -p prebuilt &amp;&amp; cp target/x86_64-unknown-linux-gnu/release/rslsync-* prebuilt/
+curl -fsSL "https://linux-packages.resilio.com/resilio-sync/deb/pool/non-free/r/resilio-sync/resilio-sync_3.1.2.1076-1_amd64.deb" -o /tmp/resilio-sync.deb
+echo "31b623897fef0682b97f6274d124a7d7003c5d0db47f3fe3407a5c45258fbcbb  /tmp/resilio-sync.deb" | sha256sum -c -
+ar x /tmp/resilio-sync.deb &amp;&amp; tar -xf data.tar.* &amp;&amp; cp usr/bin/rslsync prebuilt/rslsync
 guix pack -f docker --entry-point=/bin/rslsync-init -S /bin=bin -S /etc=etc -S /share=share -m manifest.scm</pre>
       </div>
     </section>
