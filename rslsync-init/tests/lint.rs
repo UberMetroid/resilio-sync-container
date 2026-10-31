@@ -120,5 +120,36 @@ fn test_manifests_and_multi_platform_templates() -> Result<(), Box<dyn std::erro
     assert!(ci_yml.contains("docker push ghcr.io/ubermetroid/resilio-sync-container:latest"));
     assert!(ci_yml.contains("docker push ghcr.io/ubermetroid/resilio-sync-container:v0.2.0"));
 
+    let readme = fs::read_to_string(workspace_root.join("README.md"))?;
+    let docs_html = fs::read_to_string(workspace_root.join("docs/index.html"))?;
+    assert!(workspace_root.join("docs/.nojekyll").exists());
+    assert!(workspace_root.join("docs/resilio-sync-icon.png").exists());
+
+    for doc in [&readme, &docs_html] {
+        let lower = doc.to_ascii_lowercase();
+        assert!(
+            !lower.contains("zero trust") && !lower.contains("zero-trust"),
+            "Documentation must not contain the phrase 'zero trust'"
+        );
+        assert!(
+            !lower.contains("first principles") && !lower.contains("first-principles"),
+            "Documentation must not contain the phrase 'first principles'"
+        );
+        for required in [
+            "3.1.2.1076",
+            "http.port",
+            "compose.synology.yaml",
+            "resilio-sync.container",
+            "unraid-template.xml",
+            ".btskey",
+            "9198",
+        ] {
+            assert!(
+                doc.contains(required),
+                "Documentation missing required user-facing topic: {required}"
+            );
+        }
+    }
+
     Ok(())
 }

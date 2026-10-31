@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Resilio Sync v3 Container — Unraid, Synology NAS &amp; Fedora Server</title>
+  <meta name="description" content="Resilio Sync v3 (3.1.2.1076-1) container for Unraid, Synology NAS (DSM 7.2+), Fedora Server, and Docker/Podman. Preserves NAS ACLs, validates sync.conf before launch, and tracks live WebUI port changes.">
+  <link rel="icon" href="resilio-sync-icon.png" type="image/png">
+  <style>
+    :root {
+      --bg: #080b10;
+      --panel: rgba(16, 22, 32, 0.92);
+      --panel-alt: rgba(22, 30, 44, 0.94);
+      --border: #243044;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --accent: #3fb950;
+      --blue: #58a6ff;
+      --purple: #a371f7;
+      --amber: #d29922;
+      --mono: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: radial-gradient(circle at 82% 14%, rgba(63, 185, 80, 0.12), transparent 38%),
+                  radial-gradient(circle at 14% 88%, rgba(88, 166, 255, 0.10), transparent 42%),
+                  var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      line-height: 1.6;
+      padding: 2rem 1.25rem 4rem;
+    }
+    .wrap { max-width: 1080px; margin: 0 auto; }
+    .hero {
+      text-align: center;
+      padding: 2.8rem 1.5rem;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+    }
+    .hero img {
+      border-radius: 18px;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+    }
+    .hero h1 { font-size: 2.3rem; letter-spacing: 0.04em; margin-top: 0.75rem; text-shadow: 0 0 24px rgba(63, 185, 80, 0.35); }
+    .subtitle { font-family: var(--mono); color: var(--accent); font-size: 0.9rem; letter-spacing: 0.06em; text-transform: uppercase; margin: 0.45rem 0 1.1rem; }
+    .hero p { max-width: 780px; margin: 0 auto 1.4rem; color: var(--muted); font-size: 1.04rem; }
+    .hero p strong { color: var(--text); }
+    .badges { display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap; margin-bottom: 1.3rem; }
+    .badge { font-family: var(--mono); font-size: 0.75rem; padding: 0.25rem 0.7rem; border-radius: 999px; border: 1px solid rgba(63, 185, 80, 0.45); background: rgba(63, 185, 80, 0.12); color: var(--accent); }
+    .badge.blue { border-color: rgba(88, 166, 255, 0.45); background: rgba(88, 166, 255, 0.12); color: var(--blue); }
+    .badge.purple { border-color: rgba(163, 113, 247, 0.45); background: rgba(163, 113, 247, 0.12); color: var(--purple); }
+    .btn-row { display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap; }
+    .btn {
+      font-family: var(--mono);
+      font-size: 0.85rem;
+      font-weight: 600;
+      padding: 0.65rem 1.25rem;
+      border-radius: 6px;
+      text-decoration: none;
+      background: var(--accent);
+      color: #04070a;
+      border: 1px solid var(--accent);
+    }
+    .btn.secondary { background: var(--panel-alt); color: var(--text); border-color: var(--border); }
+    .ticker {
+      overflow: hidden;
+      white-space: nowrap;
+      background: #05070b;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.55rem 0;
+      margin-bottom: 1.75rem;
+      font-family: var(--mono);
+      font-size: 0.78rem;
+    }
+    .ticker-track { display: inline-block; animation: scroll 32s linear infinite; }
+    .chip { display: inline-block; margin: 0 0.5rem; padding: 0.18rem 0.7rem; border-radius: 4px; background: rgba(63, 185, 80, 0.1); border: 1px solid rgba(63, 185, 80, 0.35); }
+    @keyframes scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+    section { margin-bottom: 2rem; }
+    .section-head { margin-bottom: 0.9rem; }
+    .section-head h2 { font-family: var(--mono); font-size: 1.2rem; color: var(--accent); margin-bottom: 0.25rem; }
+    .section-head p { color: var(--muted); font-size: 0.96rem; max-width: 820px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.15rem; }
+    .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(440px, 1fr)); gap: 1.15rem; }
+    @media (max-width: 640px) { .grid-2 { grid-template-columns: 1fr; } }
+    .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 1.35rem; }
+    .card h3 { font-size: 1rem; margin-bottom: 0.5rem; color: var(--text); font-family: var(--mono); }
+    .card h3 .step { color: var(--accent); margin-right: 0.4rem; }
+    .card p, .card li { font-size: 0.92rem; color: var(--muted); }
+    .card p + p { margin-top: 0.55rem; }
+    .card p.lead { color: var(--text); font-weight: 500; }
+    .card ul, .card ol { padding-left: 1.2rem; margin-top: 0.45rem; }
+    .card li { margin-bottom: 0.35rem; }
+    .card code, .section-head code, td code { font-family: var(--mono); font-size: 0.85em; color: var(--accent); background: rgba(63, 185, 80, 0.08); padding: 0.1rem 0.32rem; border-radius: 4px; }
+    .card a, .section-head a, td a { color: var(--blue); text-decoration: none; }
+    .card a:hover, .section-head a:hover, td a:hover { text-decoration: underline; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    th, td { text-align: left; padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { font-family: var(--mono); color: var(--accent); font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    td:first-child { color: var(--text); font-weight: 500; }
+    td { color: var(--muted); }
+    pre {
+      background: #05070b;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.95rem 1rem;
+      overflow-x: auto;
+      font-family: var(--mono);
+      font-size: 0.79rem;
+      color: #7ee787;
+      margin: 0.75rem 0;
+      line-height: 1.5;
+    }
+    .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 1rem; margin-bottom: 1.75rem; }
+    .stat { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.15rem; }
+    .stat .n { font-family: var(--mono); font-size: 1.4rem; color: var(--accent); line-height: 1.2; font-weight: 600; }
+    .stat .l { color: var(--muted); font-size: 0.84rem; margin-top: 0.25rem; }
+    footer { text-align: center; margin-top: 2.5rem; padding-top: 1.25rem; border-top: 1px solid var(--border); font-family: var(--mono); font-size: 0.8rem; color: var(--muted); }
+    footer a { color: var(--accent); text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <img src="resilio-sync-icon.png" alt="Resilio Sync v3 Container" width="112" height="112">
+      <h1>resilio-sync-container</h1>
+      <div class="subtitle">Resilio Sync v3 (3.1.2.1076-1) Appliance for Unraid, Synology NAS &amp; Fedora Server</div>
+      <div class="badges">
+        <span class="badge">Resilio Sync v3.1.2.1076-1</span>
+        <span class="badge blue">Release v0.2.0</span>
+        <span class="badge">Zero External Rust Crates (std only)</span>
+        <span class="badge purple">#![forbid(unsafe_code)] &bull; No Shell</span>
+        <span class="badge blue">GNU Guix &amp; Nix Reproducible</span>
+        <span class="badge">MIT Licensed Supervision</span>
+      </div>
+      <p>
+        <strong>Resilio Sync v3 is now free for everyone, but the official Docker Hub image stopped at v2.8.1.</strong>
+        This container packages the SHA256-pinned Resilio Sync v3 binary with three static Rust supervision tools
+        (<code>rslsync-init</code>, <code>rslsync-config</code>, <code>rslsync-health</code>) that protect your NAS ACLs,
+        catch bad <code>sync.conf</code> edits before they crash the daemon, and track live WebUI port changes automatically.
+      </p>
+      <div class="btn-row">
+        <a class="btn" href="#setup">60-Second Platform Setup &rarr;</a>
+        <a class="btn secondary" href="https://github.com/UberMetroid/resilio-sync-container">Source on GitHub</a>
+        <a class="btn secondary" href="https://github.com/UberMetroid/resilio-sync-container/pkgs/container/resilio-sync-container">GHCR Package</a>
+        <a class="btn secondary" href="https://github.com/UberMetroid/resilio-sync-container/releases/tag/v0.2.0">Release v0.2.0</a>
+      </div>
+    </section>
+
+    <div class="ticker" aria-label="Capabilities">
+      <div class="ticker-track">
+        <span class="chip">RESILIO SYNC V3.1.2.1076-1</span>
+        <span class="chip">LIVE HTTP.PORT HEALTH PROBE</span>
+        <span class="chip">NEVER CHOWN -R /SYNC</span>
+        <span class="chip">PRESERVES SYNOLOGY BTRFS SYNOACL</span>
+        <span class="chip">UNRAID SHFS &amp; APPDATA READY</span>
+        <span class="chip">FEDORA PODMAN QUADLET + SELINUX :Z/:z</span>
+        <span class="chip">PRE-FLIGHT JSON &amp; V3 KEY WHITELIST</span>
+        <span class="chip">10S SQLITE WAL SHUTDOWN WINDOW</span>
+        <span class="chip">RESILIO SYNC V3.1.2.1076-1</span>
+        <span class="chip">LIVE HTTP.PORT HEALTH PROBE</span>
+        <span class="chip">NEVER CHOWN -R /SYNC</span>
+        <span class="chip">PRESERVES SYNOLOGY BTRFS SYNOACL</span>
+        <span class="chip">UNRAID SHFS &amp; APPDATA READY</span>
+        <span class="chip">FEDORA PODMAN QUADLET + SELINUX :Z/:z</span>
+        <span class="chip">PRE-FLIGHT JSON &amp; V3 KEY WHITELIST</span>
+        <span class="chip">10S SQLITE WAL SHUTDOWN WINDOW</span>
+      </div>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat"><div class="n">3.1.2.1076</div><div class="l">SHA256-pinned Resilio Sync v3 upstream package, where all Pro features are now free.</div></div>
+      <div class="stat"><div class="n">0</div><div class="l">Recursive <code>chown -R</code> calls on <code>/sync</code>. Synology ACLs and Unraid arrays stay untouched.</div></div>
+      <div class="stat"><div class="n">:9198/status</div><div class="l">Live JSON health endpoint &amp; CLI probe tracking GUI port changes via <code>http.port</code>.</div></div>
+      <div class="stat"><div class="n">3</div><div class="l">Pure-<code>std</code> Rust binaries (<code>rslsync-init</code>, <code>rslsync-config</code>, <code>rslsync-health</code>) with zero external crates.</div></div>
+    </div>
+
+    <section id="why">
+      <div class="section-head">
+        <h2>Why Resilio Sync v3 Needs a Dedicated Container</h2>
+        <p>Resilio made v3 free for personal and commercial use, removing the old Pro vs. Home restrictions. However, deploying v3 in a container hits four real-world pitfalls that this image solves out of the box.</p>
+      </div>
+      <div class="grid">
+        <div class="card">
+          <h3><span class="step">01</span>Official Docker Hub Stopped at v2.8.1</h3>
+          <p class="lead"><code>resilio/sync</code> on Docker Hub is frozen on 2.8.1.</p>
+          <p>Resilio only ships v3 (<code>3.1.2.1076-1</code>) as <code>.deb</code> and <code>.rpm</code> packages. Furthermore, the <code>rslsync</code> ELF binary has a 17.4 MB WebUI ZIP archive appended to the end of the executable &mdash; standard container build pipelines that run <code>strip</code> corrupt the binary and break the WebUI.</p>
+        </div>
+        <div class="card">
+          <h3><span class="step">02</span>Changing the WebUI Port Kills Other Images</h3>
+          <p class="lead">GUI port changes write to <code>/config/storage/http.port</code>, not <code>sync.conf</code>.</p>
+          <p>Third-party images that hardcode <code>nc -z localhost 8888</code> in their healthcheck fail as soon as you change the WebUI port in Preferences, causing Docker to restart the container in a loop. <code>rslsync-health</code> reads <code>http.port</code> first and falls back to <code>sync.conf</code>.</p>
+        </div>
+        <div class="card">
+          <h3><span class="step">03</span>Broken Default Folder Paths (<code>/downloads</code> vs <code>/sync</code>)</h3>
+          <p class="lead">Mismatched <code>files_default_path</code> breaks the WebUI folder picker.</p>
+          <p>Images like <code>linuxserver/resilio-sync</code> ship <code>"directory_root": "/sync/"</code> alongside <code>"files_default_path": "/downloads"</code>. Because <code>/downloads</code> is outside <code>/sync/</code>, creating folders in the GUI fails. Here, both default cleanly to <code>/sync</code> and are verified pre-flight by <code>rslsync-config</code>.</p>
+        </div>
+        <div class="card">
+          <h3><span class="step">04</span>NAS ACL Destruction &amp; Metadata Pollution</h3>
+          <p class="lead">Never run <code>chown -R</code> on multi-terabyte NAS shares.</p>
+          <p>Recursive <code>chown -R</code> on <code>/sync</code> strips Synology DSM Btrfs <code>synoacl</code> permissions and stalls Unraid <code>shfs</code> mounts. <code>rslsync-init</code> only applies recursive ownership to <code>/config</code> and automatically seeds <code>@eaDir</code>, <code>#recycle</code>, and <code>.Recycle.Bin</code> into <code>/sync/*/.sync/IgnoreList</code>.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="setup">
+      <div class="section-head">
+        <h2>60-Second Setup by Platform</h2>
+        <p>Copy-paste configurations tailored for Unraid, Synology NAS (DSM 7.2+ Container Manager), Fedora Server (Podman Quadlet + SELinux), and Docker/Podman CLI.</p>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <h3><span class="step">A</span>Unraid (WebUI Template)</h3>
+          <p class="lead">Pre-configured with <code>PUID=99</code> (<code>nobody</code>), <code>PGID=100</code> (<code>users</code>), <code>UMASK=002</code>, and health port <code>9198</code>.</p>
+<pre>curl -fsSL https://raw.githubusercontent.com/UberMetroid/resilio-sync-container/main/unraid-template.xml \
+  -o /boot/config/plugins/dockerMan/templates-user/my-resilio-sync.xml</pre>
+          <ul>
+            <li>In Unraid: <strong>Docker &rarr; Add Container &rarr; select <code>resilio-sync-container</code> &rarr; Apply</strong>.</li>
+            <li>Maps <code>/config</code> to <code>/mnt/user/appdata/resilio-sync/config</code> and <code>/sync</code> to <code>/mnt/user/sync</code>.</li>
+            <li>Port <code>9198</code> avoids conflicts with <code>manta</code> (<code>:9199</code>), <code>barracuda</code> (<code>:9299</code>), and <code>urchin</code> (<code>:9399</code>).</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3><span class="step">B</span>Synology NAS (DSM 7.2+ Container Manager)</h3>
+          <p class="lead">Preserves Btrfs <code>synoacl</code> permissions and excludes <code>@eaDir</code>, <code>#recycle</code>, and <code>#snapshot</code>.</p>
+          <p><strong>1. Raise Synology's low 8192 <code>inotify</code> limit</strong> (Control Panel &rarr; Task Scheduler &rarr; Triggered Task &rarr; Boot-up as <code>root</code>):</p>
+<pre>sysctl -w fs.inotify.max_user_watches=524288</pre>
+          <p><strong>2. Deploy in Container Manager &rarr; Project</strong> (<a href="https://github.com/UberMetroid/resilio-sync-container/blob/main/assets/compose.synology.yaml"><code>assets/compose.synology.yaml</code></a>):</p>
+<pre>services:
+  resilio-sync:
+    image: ghcr.io/ubermetroid/resilio-sync-container:latest
+    container_name: resilio-sync
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      - PUID=1026
+      - PGID=100
+      - UMASK=002
+      - DEVICE_NAME=synology-resilio-sync
+    ports:
+      - "8888:8888/tcp"
+      - "55555:55555/tcp"
+      - "55555:55555/udp"
+      - "127.0.0.1:9198:9198/tcp"
+    volumes:
+      - /volume1/docker/resilio-sync/config:/config:rw
+      - /volume1/sync:/sync:rw</pre>
+        </div>
+
+        <div class="card">
+          <h3><span class="step">C</span>Fedora Server (Podman Quadlet + SELinux)</h3>
+          <p class="lead">Uses <code>UserNS=keep-id:uid=1000,gid=1000</code> and SELinux <code>:Z</code> / <code>:z</code> volume relabeling.</p>
+<pre># 1. Create host directories
+sudo mkdir -p /var/lib/resilio-sync/config /srv/sync
+sudo chown -R 1000:1000 /var/lib/resilio-sync/config /srv/sync
+
+# 2. Install systemd Quadlet unit
+sudo curl -fsSL https://raw.githubusercontent.com/UberMetroid/resilio-sync-container/main/assets/resilio-sync.container \
+  -o /etc/containers/systemd/resilio-sync.container
+sudo systemctl daemon-reload
+sudo systemctl start resilio-sync
+
+# 3. Open WebUI and P2P ports in firewalld
+sudo firewall-cmd --permanent --add-port=8888/tcp \
+  --add-port=55555/tcp --add-port=55555/udp
+sudo firewall-cmd --reload</pre>
+          <p>Includes <code>ExecStop=/usr/bin/podman exec resilio-sync /bin/rslsync-init --shutdown</code> for clean SQLite WAL checkpointing.</p>
+        </div>
+
+        <div class="card">
+          <h3><span class="step">D</span>Docker / Podman CLI</h3>
+          <p class="lead">Works on any Linux host; synthesizes <code>/etc/passwd</code> entries dynamically for any <code>PUID:PGID</code>.</p>
+<pre>docker run -d \
+  --name=resilio-sync \
+  --restart=unless-stopped \
+  --security-opt=no-new-privileges:true \
+  --entrypoint=/bin/rslsync-init \
+  -p 8888:8888/tcp \
+  -p 55555:55555/tcp \
+  -p 55555:55555/udp \
+  -p 127.0.0.1:9198:9198/tcp \
+  -e PUID=1000 \
+  -e PGID=1000 \
+  -e UMASK=002 \
+  -e DEVICE_NAME=resilio-sync \
+  -v /srv/resilio-sync/config:/config:rw \
+  -v /srv/resilio-sync/sync:/sync:rw \
+  ghcr.io/ubermetroid/resilio-sync-container:latest</pre>
+        </div>
+      </div>
+    </section>
+
+    <section id="first-run">
+      <div class="section-head">
+        <h2>First-Run WebUI Setup &amp; Free v3 License Activation</h2>
+        <p>What to expect the first time you open <code>http://&lt;host-ip&gt;:8888/gui/</code>.</p>
+      </div>
+      <div class="grid">
+        <div class="card">
+          <h3><span class="step">01</span>Create Your Admin Login</h3>
+          <p class="lead">Open <code>http://&lt;host-ip&gt;:8888/gui/</code></p>
+          <p>Set your WebUI administrator username and password. Empty passwords are rejected by default (<code>"allow_empty_password": false</code>).</p>
+        </div>
+        <div class="card">
+          <h3><span class="step">02</span>Apply Your Free <code>.btskey</code> License</h3>
+          <p class="lead">Preferences (Gear Icon) &rarr; License &rarr; Apply license</p>
+          <p>Upload your free Resilio Sync v3 <code>.btskey</code> file. The license and device identity are saved inside <code>/config/storage</code> and persist across container updates.</p>
+        </div>
+        <div class="card">
+          <h3><span class="step">03</span>Add Folders Under <code>/sync</code></h3>
+          <p class="lead">Folder picker opens directly inside <code>/sync</code></p>
+          <p>Any existing shared folder with a <code>.sync/IgnoreList</code> automatically receives exclusions for <code>@eaDir</code>, <code>#recycle</code>, <code>#snapshot</code>, <code>.Recycle.Bin</code>, and <code>.Trash-*</code>.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="networking">
+      <div class="section-head">
+        <h2>Networking: LAN Discovery, Bridge vs. Host Mode &amp; Port Forwarding</h2>
+        <p>How to get full wire-speed transfers across your local subnet and remote WAN peers.</p>
+      </div>
+      <div class="card">
+        <table>
+          <thead>
+            <tr>
+              <th>Port / Protocol</th>
+              <th>Service</th>
+              <th>Operational Guidance</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>55555/tcp</code> &amp; <code>55555/udp</code></td>
+              <td>P2P Sync Listener (TCP + &mu;TP)</td>
+              <td>Publish <strong>both TCP and UDP</strong>. Forward <code>55555/tcp</code> and <code>55555/udp</code> on your router so remote peers connect directly instead of falling back to slow relay servers.</td>
+            </tr>
+            <tr>
+              <td><code>239.192.0.0:3838/udp</code></td>
+              <td>LAN Multicast Discovery</td>
+              <td>Docker/Podman bridge NAT blocks multicast packets. In <code>bridge</code> mode, peers still transfer at full LAN speed once discovered via tracker or by adding your NAS IP (<code>192.168.x.x:55555</code>) under <strong>Folder Preferences &rarr; Use predefined hosts</strong>. For trackerless LAN multicast, run with <code>--network=host</code> and <code>-e HEALTH_BIND=127.0.0.1</code>.</td>
+            </tr>
+            <tr>
+              <td><code>8888/tcp</code></td>
+              <td>WebUI (<code>/gui/</code>)</td>
+              <td>If you change the WebUI port inside the GUI, <code>rslsync</code> writes the active port to <code>/config/storage/http.port</code>. <code>rslsync-health</code> detects it automatically.</td>
+            </tr>
+            <tr>
+              <td><code>9198/tcp</code></td>
+              <td>Health &amp; Status API (<code>/status</code>)</td>
+              <td>Returns JSON health status (<code>HTTP 200</code> when healthy, <code>HTTP 503</code> when unhealthy). Used by <code>/bin/rslsync-health --check</code>.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="config">
+      <div class="section-head">
+        <h2>Environment Variables, Hot Reload &amp; Health Telemetry</h2>
+        <p>Configure on first boot with environment variables, or edit <code>/config/sync.conf</code> live &mdash; <code>rslsync-init</code> validates changes every 5 seconds with <code>rslsync-config</code> before restarting the daemon.</p>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <h3>Environment Variables</h3>
+          <table>
+            <thead>
+              <tr><th>Variable</th><th>Default</th><th>Purpose</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>PUID</code> / <code>PGID</code></td><td><code>99</code> / <code>100</code></td><td>Runtime UID &amp; GID (<code>99:100</code> Unraid, <code>1026:100</code> Synology, <code>1000:1000</code> Fedora)</td></tr>
+              <tr><td><code>UMASK</code></td><td><code>002</code></td><td>Octal mask (<code>002</code> = <code>775</code> dirs / <code>664</code> files)</td></tr>
+              <tr><td><code>DEVICE_NAME</code></td><td><code>resilio-sync</code></td><td>Peer name rendered into <code>/config/sync.conf</code></td></tr>
+              <tr><td><code>WEBUI_PORT</code></td><td><code>8888</code></td><td>Initial WebUI port in <code>/config/sync.conf</code></td></tr>
+              <tr><td><code>SYNC_PORT</code></td><td><code>55555</code></td><td>P2P TCP/UDP listening port (<code>1024..=65535</code>)</td></tr>
+              <tr><td><code>HEALTH_PORT</code></td><td><code>9198</code></td><td>Health HTTP server port (<code>:9198/status</code>)</td></tr>
+              <tr><td><code>HEALTH_BIND</code></td><td><code>0.0.0.0</code></td><td>Health bind IP (use <code>127.0.0.1</code> in host net mode)</td></tr>
+              <tr><td><code>SEED_IGNORE_LIST</code></td><td><code>true</code></td><td>Seed NAS metadata exclusions into <code>.sync/IgnoreList</code></td></tr>
+              <tr><td><code>DROP_PRIVS</code></td><td><code>true</code></td><td>Drop from <code>root</code> to <code>PUID:PGID</code> via <code>setpriv</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="card">
+          <h3>Live Telemetry &amp; Pre-Flight Validation</h3>
+          <p class="lead">Query <code>:9198/status</code> from any monitoring tool or dashboard:</p>
+<pre>$ curl -s http://localhost:9198/status
+{
+  "status": "healthy",
+  "daemon_pid_alive": true,
+  "webui_up": true,
+  "sync_port_up": true,
+  "storage_initialized": true,
+  "webui_port": 8888,
+  "sync_port": 55555,
+  "inotify_max_watches": 524288,
+  "uptime_seconds": 86420
+}</pre>
+          <p class="lead">Test health or validate <code>/config/sync.conf</code> via CLI:</p>
+<pre>docker exec resilio-sync /bin/rslsync-health --check
+docker exec resilio-sync /bin/rslsync-config --config /config/sync.conf</pre>
+        </div>
+      </div>
+    </section>
+
+    <section id="build">
+      <div class="section-head">
+        <h2>Build &amp; Verify from Source (Rust + GNU Guix / Nix)</h2>
+        <p>Every supervision binary is pure standard-library Rust (<code>Cargo.lock</code> has zero external dependencies) and every package input is pinned by cryptographic hash.</p>
+      </div>
+      <div class="card">
+<pre># 1. Run the Rust test suite, zero-panic Clippy gate, and formatting check
+cargo test --workspace --all-targets
+cargo clippy --workspace --all-targets -- -D warnings -D clippy::unwrap_used -D clippy::expect_used -D clippy::panic
+cargo fmt --all -- --check
+
+# 2. Build reproducible OCI container via Nix Flake
+nix build .#default
+docker load &lt; result
+
+# 3. Or pack with GNU Guix (manifest.scm)
+RUSTFLAGS="-C target-feature=+crt-static" cargo build --release --workspace --target x86_64-unknown-linux-gnu
+mkdir -p prebuilt &amp;&amp; cp target/x86_64-unknown-linux-gnu/release/rslsync-* prebuilt/
+guix pack -f docker --entry-point=/bin/rslsync-init -S /bin=bin -S /etc=etc -S /share=share -m manifest.scm</pre>
+      </div>
+    </section>
+
+    <footer>
+      resilio-sync-container v0.2.0 &bull;
+      <a href="https://github.com/UberMetroid/resilio-sync-container">Source on GitHub</a> &bull;
+      <a href="https://github.com/UberMetroid/resilio-sync-container/pkgs/container/resilio-sync-container">GHCR Image</a> &bull;
+      <a href="https://github.com/UberMetroid/resilio-sync-container/releases">Releases</a> &bull;
+      <a href="https://github.com/UberMetroid/resilio-sync-container/blob/main/AGENTS.md">House Laws (AGENTS.md)</a> &bull;
+      <a href="https://github.com/UberMetroid/resilio-sync-container/blob/main/LICENSE">MIT License</a>
+    </footer>
+  </div>
+</body>
+</html>
