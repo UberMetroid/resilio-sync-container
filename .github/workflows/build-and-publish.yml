@@ -27,7 +27,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
-          targets: x86_64-unknown-linux-gnu
+          targets: x86_64-unknown-linux-musl
 
       - name: Step 1 - Rust Gate & Unit Tests
         run: cargo test --workspace --all-targets
@@ -40,11 +40,11 @@ jobs:
 
       - name: Step 4 - Build Static Rust Supervision Binaries
         run: |
-          RUSTFLAGS="-C target-feature=+crt-static" cargo build --release --workspace --target x86_64-unknown-linux-gnu
+          RUSTFLAGS="-C target-feature=+crt-static -C relocation-model=static -C target-cpu=x86-64" cargo build --release --workspace --target x86_64-unknown-linux-musl
           mkdir -p prebuilt
-          cp target/x86_64-unknown-linux-gnu/release/rslsync-init prebuilt/
-          cp target/x86_64-unknown-linux-gnu/release/rslsync-config prebuilt/
-          cp target/x86_64-unknown-linux-gnu/release/rslsync-health prebuilt/
+          cp target/x86_64-unknown-linux-musl/release/rslsync-init prebuilt/
+          cp target/x86_64-unknown-linux-musl/release/rslsync-config prebuilt/
+          cp target/x86_64-unknown-linux-musl/release/rslsync-health prebuilt/
           chmod 755 prebuilt/rslsync-*
 
       - name: Step 5 - Fetch & Verify SHA256-Pinned Resilio Sync v3 DEB
@@ -121,7 +121,7 @@ jobs:
           docker logs rslsync-smoke
           docker exec rslsync-smoke /bin/rslsync-health --check
           docker rm -fv rslsync-smoke
-          docker tag ghcr.io/ubermetroid/resilio-sync-container:latest ghcr.io/ubermetroid/resilio-sync-container:v0.3.1
+          docker tag ghcr.io/ubermetroid/resilio-sync-container:latest ghcr.io/ubermetroid/resilio-sync-container:v0.3.2
           docker push ghcr.io/ubermetroid/resilio-sync-container:latest
-          docker push ghcr.io/ubermetroid/resilio-sync-container:v0.3.1
+          docker push ghcr.io/ubermetroid/resilio-sync-container:v0.3.2
 

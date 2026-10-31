@@ -61,7 +61,7 @@
 
           rslsync-suite = pkgs.rustPlatform.buildRustPackage {
             pname = "rslsync-suite";
-            version = "0.3.1";
+            version = "0.3.2";
             src = ./.;
             cargoLock.lockFile = ./Cargo.lock;
             postInstall = ''

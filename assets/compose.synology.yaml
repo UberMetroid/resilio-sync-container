@@ -1,4 +1,4 @@
-# Synology DSM 7.2+ Container Manager Project Compose File
+# Synology DSM 7.2+ Container Manager Project Compose File (v0.3.2)
 # Before starting on Synology DSM, raise kernel inotify watches via Control Panel -> Task Scheduler (Triggered Task -> Boot-up as root):
 #   sysctl -w fs.inotify.max_user_watches=524288
 services:

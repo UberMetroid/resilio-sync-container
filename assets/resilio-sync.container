@@ -1,11 +1,11 @@
-# Fedora Server systemd Podman Quadlet unit
+# Fedora Server systemd Podman Quadlet unit (v0.3.2)
 # Install to: /etc/containers/systemd/resilio-sync.container (rootful)
 #         or: ~/.config/containers/systemd/resilio-sync.container (rootless)
 # Reload & start: systemctl --user daemon-reload && systemctl --user start resilio-sync
 # Firewalld: sudo firewall-cmd --permanent --add-port=8888/tcp --add-port=55555/tcp --add-port=55555/udp && sudo firewall-cmd --reload
 
 [Unit]
-Description=Hardened Resilio Sync v3 Appliance (UberMetroid/resilio-sync-container)
+Description=Hardened Resilio Sync v3 Appliance (UberMetroid/resilio-sync-container v0.3.2)
 After=network-online.target
 Wants=network-online.target
 

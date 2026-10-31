@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/UberMetroid/resilio-sync-container/actions/workflows/build-and-publish.yml"><img src="https://github.com/UberMetroid/resilio-sync-container/actions/workflows/build-and-publish.yml/badge.svg" alt="CI" /></a>
-  <a href="https://github.com/UberMetroid/resilio-sync-container/releases/tag/v0.3.1"><img src="https://img.shields.io/badge/release-v0.3.1-50fa7b?style=flat-square" alt="Release v0.3.1" /></a>
+  <a href="https://github.com/UberMetroid/resilio-sync-container/releases/tag/v0.3.2"><img src="https://img.shields.io/badge/release-v0.3.2-50fa7b?style=flat-square" alt="Release v0.3.2" /></a>
   <a href="https://github.com/UberMetroid/resilio-sync-container/pkgs/container/resilio-sync-container"><img src="https://img.shields.io/badge/rslsync-3.1.2.1076--1-00b4d8?style=flat-square" alt="Resilio Sync 3.1.2.1076-1" /></a>
   <a href="AGENTS.md"><img src="https://img.shields.io/badge/dependencies-zero%20(std%20only)-3fb950?style=flat-square" alt="Zero Dependencies" /></a>
   <a href="AGENTS.md"><img src="https://img.shields.io/badge/unsafe-forbidden-f85149?style=flat-square" alt="No Unsafe" /></a>
@@ -314,11 +314,11 @@ docker load < result
 
 ```bash
 # 1. Build static Rust supervision binaries
-RUSTFLAGS="-C target-feature=+crt-static" cargo build --release --workspace --target x86_64-unknown-linux-gnu
+RUSTFLAGS="-C target-feature=+crt-static -C relocation-model=static -C target-cpu=x86-64" cargo build --release --workspace --target x86_64-unknown-linux-musl
 mkdir -p prebuilt
-cp target/x86_64-unknown-linux-gnu/release/rslsync-init prebuilt/
-cp target/x86_64-unknown-linux-gnu/release/rslsync-config prebuilt/
-cp target/x86_64-unknown-linux-gnu/release/rslsync-health prebuilt/
+cp target/x86_64-unknown-linux-musl/release/rslsync-init prebuilt/
+cp target/x86_64-unknown-linux-musl/release/rslsync-config prebuilt/
+cp target/x86_64-unknown-linux-musl/release/rslsync-health prebuilt/
 
 # 2. Fetch and verify the SHA256-pinned upstream Resilio Sync v3 .deb
 curl -fsSL "https://linux-packages.resilio.com/resilio-sync/deb/pool/non-free/r/resilio-sync/resilio-sync_3.1.2.1076-1_amd64.deb" \

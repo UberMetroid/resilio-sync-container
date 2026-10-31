@@ -21,7 +21,7 @@
 (define-public rslsync-from-source
   (package
     (name "rslsync-from-source")
-    (version "0.3.1")
+    (version "0.3.2")
     (source (local-file "." "resilio-sync-container-checkout"
                         #:recursive? #t
                         #:select? (lambda (file stat)

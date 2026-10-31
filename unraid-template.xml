@@ -9,7 +9,7 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/UberMetroid/resilio-sync-container</Support>
   <Project>https://github.com/UberMetroid/resilio-sync-container</Project>
-  <Overview>Resilio Sync v3: Hardened, reproducible GNU Guix / Nix + zero-dependency Rust Resilio Sync v3 (3.1.2.1076) P2P synchronization appliance for Unraid, Synology NAS, and Fedora Server. Features fail-closed JSON &amp; v3 key-whitelist validation, live http.port health probing, top-level /config, /users, /shared, /other, and /downloads mounts, and non-recursive data ACL preservation.</Overview>
+  <Overview>Resilio Sync v3 (v0.3.2): Hardened, reproducible GNU Guix / Nix + zero-dependency Rust Resilio Sync v3 (3.1.2.1076) P2P synchronization appliance for Unraid, Synology NAS, and Fedora Server. Features fail-closed JSON &amp; v3 key-whitelist validation, live http.port health probing, top-level /config, /users, /shared, /other, and /downloads mounts, and non-recursive data ACL preservation.</Overview>
   <Category>Backup: Cloud: Network:Other</Category>
   <WebUI>http://[IP]:[PORT:8888]/gui/</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/UberMetroid/resilio-sync-container/main/unraid-template.xml</TemplateURL>

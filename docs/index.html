@@ -131,7 +131,7 @@
       <div class="subtitle">Resilio Sync v3 (3.1.2.1076-1) Appliance for Unraid, Synology NAS &amp; Fedora Server</div>
       <div class="badges">
         <span class="badge">Resilio Sync v3.1.2.1076-1</span>
-        <span class="badge blue">Release v0.3.1</span>
+        <span class="badge blue">Release v0.3.2</span>
         <span class="badge">Zero External Rust Crates (std only)</span>
         <span class="badge purple">#![forbid(unsafe_code)] &bull; No Shell</span>
         <span class="badge blue">GNU Guix &amp; Nix Reproducible</span>
@@ -148,7 +148,7 @@
         <a class="btn" href="#setup">60-Second Platform Setup &rarr;</a>
         <a class="btn secondary" href="https://github.com/UberMetroid/resilio-sync-container">Source on GitHub</a>
         <a class="btn secondary" href="https://github.com/UberMetroid/resilio-sync-container/pkgs/container/resilio-sync-container">GHCR Package</a>
-        <a class="btn secondary" href="https://github.com/UberMetroid/resilio-sync-container/releases/tag/v0.3.1">Release v0.3.1</a>
+        <a class="btn secondary" href="https://github.com/UberMetroid/resilio-sync-container/releases/tag/v0.3.2">Release v0.3.2</a>
       </div>
     </section>
 
@@ -444,8 +444,8 @@ nix build .#default
 docker load &lt; result
 
 # 3. Or pack with GNU Guix (manifest.scm)
-RUSTFLAGS="-C target-feature=+crt-static" cargo build --release --workspace --target x86_64-unknown-linux-gnu
-mkdir -p prebuilt &amp;&amp; cp target/x86_64-unknown-linux-gnu/release/rslsync-* prebuilt/
+RUSTFLAGS="-C target-feature=+crt-static -C relocation-model=static -C target-cpu=x86-64" cargo build --release --workspace --target x86_64-unknown-linux-musl
+mkdir -p prebuilt &amp;&amp; cp target/x86_64-unknown-linux-musl/release/rslsync-* prebuilt/
 curl -fsSL "https://linux-packages.resilio.com/resilio-sync/deb/pool/non-free/r/resilio-sync/resilio-sync_3.1.2.1076-1_amd64.deb" -o /tmp/resilio-sync.deb
 echo "31b623897fef0682b97f6274d124a7d7003c5d0db47f3fe3407a5c45258fbcbb  /tmp/resilio-sync.deb" | sha256sum -c -
 ar x /tmp/resilio-sync.deb &amp;&amp; tar -xf data.tar.* &amp;&amp; cp usr/bin/rslsync prebuilt/rslsync
@@ -454,7 +454,7 @@ guix pack -f docker --entry-point=/bin/rslsync-init -S /bin=bin -S /etc=etc -S /
     </section>
 
     <footer>
-      resilio-sync-container v0.3.1 &bull;
+      resilio-sync-container v0.3.2 &bull;
       <a href="https://github.com/UberMetroid/resilio-sync-container">Source on GitHub</a> &bull;
       <a href="https://github.com/UberMetroid/resilio-sync-container/pkgs/container/resilio-sync-container">GHCR Image</a> &bull;
       <a href="https://github.com/UberMetroid/resilio-sync-container/releases">Releases</a> &bull;
