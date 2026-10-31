@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/UberMetroid/resilio-sync-container/actions/workflows/build-and-publish.yml"><img src="https://github.com/UberMetroid/resilio-sync-container/actions/workflows/build-and-publish.yml/badge.svg" alt="CI" /></a>
-  <a href="https://github.com/UberMetroid/resilio-sync-container/releases/tag/v0.2.0"><img src="https://img.shields.io/badge/release-v0.2.0-50fa7b?style=flat-square" alt="Release v0.2.0" /></a>
+  <a href="https://github.com/UberMetroid/resilio-sync-container/releases/tag/v0.3.0"><img src="https://img.shields.io/badge/release-v0.3.0-50fa7b?style=flat-square" alt="Release v0.3.0" /></a>
   <a href="https://github.com/UberMetroid/resilio-sync-container/pkgs/container/resilio-sync-container"><img src="https://img.shields.io/badge/rslsync-3.1.2.1076--1-00b4d8?style=flat-square" alt="Resilio Sync 3.1.2.1076-1" /></a>
   <a href="AGENTS.md"><img src="https://img.shields.io/badge/dependencies-zero%20(std%20only)-3fb950?style=flat-square" alt="Zero Dependencies" /></a>
   <a href="AGENTS.md"><img src="https://img.shields.io/badge/unsafe-forbidden-f85149?style=flat-square" alt="No Unsafe" /></a>
@@ -21,7 +21,7 @@
   <strong><a href="AGENTS.md">House Laws (AGENTS.md)</a></strong>
 </p>
 
-**Resilio Sync v3 (`3.1.2.1076-1`)** container appliance for **Unraid**, **Synology NAS (DSM 7.2+)**, **Fedora Server**, and standard **Docker / Podman** hosts. Built with **GNU Guix / Nix** and three static, pure-`std` Rust supervision binaries (`rslsync-init`, `rslsync-config`, `rslsync-health`) that keep your NAS permissions intact, validate `/config/sync.conf` before launch, and track live WebUI port changes without killing the daemon.
+**Resilio Sync v3 (`3.1.2.1076-1`)** container appliance for **Unraid**, **Synology NAS (DSM 7.2+)**, **Fedora Server**, and standard **Docker / Podman** hosts. Built with **GNU Guix / Nix** and three static, pure-`std` Rust supervision binaries (`rslsync-init`, `rslsync-config`, `rslsync-health`) with top-level `/config`, `/users`, `/shared`, `/other`, and `/downloads` mounts that keep your NAS permissions intact, validate `/config/sync.conf` before launch, and track live WebUI port changes without killing the daemon.
 
 ---
 
@@ -32,17 +32,17 @@ In late 2024, Resilio made **Resilio Sync v3** (`3.x`) completely free for perso
 1. **The official `resilio/sync` Docker image stopped at `v2.8.1`.** Resilio no longer updates their Docker Hub image and distributes v3 (`3.1.2.1076-1`) exclusively as `.deb` and `.rpm` system packages.
 2. **Changing the WebUI port in the GUI kills existing third-party containers.** When you change the WebUI port inside Resilio's Preferences UI, `rslsync` writes the new active port to `/config/storage/http.port` and does **not** rewrite `/config/sync.conf`. Images that hardcode `nc -z localhost 8888` in their Docker `HEALTHCHECK` mark the container unhealthy and enter an infinite restart loop.
 3. **Mismatched default folder paths break WebUI folder creation.** Third-party images like `linuxserver/resilio-sync` ship a default `sync.conf` with `"directory_root": "/sync/"` alongside `"files_default_path": "/downloads"`. Because `/downloads` lies outside `/sync/`, the WebUI folder picker errors out unless you manually edit JSON before starting.
-4. **Recursive `chown -R` on data volumes destroys NAS ACLs and stalls boot.** Running `chown -R` or `chmod -R` across `/sync` at container startup strips Synology DSM Btrfs extended ACLs (`synoacl`), triggers multi-minute spin-up stalls across multi-terabyte Unraid `shfs` arrays, and syncs NAS housekeeping folders (`@eaDir`, `#recycle`, `.Recycle.Bin`) to every peer on your network.
+4. **Recursive `chown -R` on data volumes destroys NAS ACLs and stalls boot.** Running `chown -R` or `chmod -R` across data shares at container startup strips Synology DSM Btrfs extended ACLs (`synoacl`) and triggers multi-minute spin-up stalls across multi-terabyte Unraid `shfs` arrays.
 
 ### How This Image Fixes Each Failure Mode
 
 | Failure Mode | What `resilio-sync-container` Does | Enforced By |
 | :--- | :--- | :--- |
 | **GUI WebUI port changes** | Reads `/config/storage/http.port` first before falling back to `/config/sync.conf`, verifies `/proc/<pid>/cmdline` against `sync.pid`, and probes `GET /gui/` on the live port. | `rslsync-health` |
-| **Broken `sync.conf` edits or typos** | Strips `//` and `/* */` comments outside JSON string literals, parses `/config/sync.conf` with a strict recursive-descent JSON parser, checks every key against the Resilio Sync v3 key whitelist, verifies `files_default_path` resides inside `directory_root` (`/sync`), and checks for port collisions across `webui.listen`, `listening_port`, and `HEALTH_PORT` (`9198`). If a live edit is invalid, `rslsync-init` logs the exact error and keeps the running daemon alive. | `rslsync-config` + `rslsync-init` |
-| **NAS ACL destruction & array stalls** | Applies recursive ownership (`chown -R`) strictly to `/config`. **Never runs `chown -R` or `chmod -R` on `/sync`**, preserving Synology `synoacl` inheritance and Unraid `shfs` responsiveness. | `rslsync-init` |
+| **Broken `sync.conf` edits or typos** | Strips `//` and `/* */` comments outside JSON string literals, parses `/config/sync.conf` with a strict recursive-descent JSON parser, checks every key against the Resilio Sync v3 key whitelist, verifies `files_default_path` (`/downloads`) resides inside `directory_root` (`/`) and allowed data roots (`/users`, `/shared`, `/other`, `/downloads`), and checks for port collisions across `webui.listen`, `listening_port`, and `HEALTH_PORT` (`9198`). If a live edit is invalid, `rslsync-init` logs the exact error and keeps the running daemon alive. | `rslsync-config` + `rslsync-init` |
+| **NAS ACL destruction & array stalls** | Applies recursive ownership (`chown -R`) strictly to `/config`. **Never runs `chown -R` or `chmod -R` on `/users`, `/shared`, `/other`, or `/downloads`**, preserving Synology `synoacl` inheritance and Unraid `shfs` responsiveness. | `rslsync-init` |
 | **Arbitrary host `PUID`/`PGID` crashes** | Synthesizes matching `/etc/passwd` and `/etc/group` entries at startup for any runtime `PUID`/`PGID` (`99:100` Unraid, `1026:100` Synology, `1000:1000` Fedora) so glibc `getpwuid()` inside `rslsync` always resolves cleanly. | `rslsync-init` |
-| **NAS metadata synced across peers** | Automatically seeds `@eaDir`, `@tmp`, `#recycle`, `#snapshot`, `.SynologyWorkingDirectory`, `.Recycle.Bin`, `.fuse_hidden*`, `.Trash-*`, `.DS_Store`, and `Thumbs.db` into existing `/sync/*/.sync/IgnoreList` files on startup (`SEED_IGNORE_LIST=true`). | `rslsync-init` |
+| **NAS metadata synced across peers** | Optional opt-in (`SEED_IGNORE_LIST=false` by default; set `SEED_IGNORE_LIST=true` to enable) seeds `@eaDir`, `@tmp`, `#recycle`, `#snapshot`, `.SynologyWorkingDirectory`, `.Recycle.Bin`, `.fuse_hidden*`, `.Trash-*`, `.DS_Store`, and `Thumbs.db` into existing `.sync/IgnoreList` files under `/users`, `/shared`, `/other`, and `/downloads`. | `rslsync-init` |
 | **SQLite database corruption on stop** | Intercepts container stop requests and gives `rslsync` a 10-second `SIGTERM` window to checkpoint `/config/storage/storage.db-wal` cleanly before exit. | `rslsync-init` |
 | **ELF stripping breaks embedded WebUI** | Preserves the 17.4 MB WebUI ZIP archive appended to the `rslsync` ELF binary (`dontStrip = true` in Nix; `patchelf --set-interpreter` / `--set-rpath` only in Guix). | `manifest.scm` & `flake.nix` |
 
@@ -60,9 +60,12 @@ curl -fsSL https://raw.githubusercontent.com/UberMetroid/resilio-sync-container/
 ```
 
 1. In the Unraid WebUI, go to **Docker** &rarr; **Add Container** &rarr; select **`resilio-sync-container`** under **User Templates**.
-2. Verify your paths:
+2. Verify your top-level paths:
    - **AppData Config Path (`/config`):** `/mnt/user/appdata/resilio-sync/config` (or `/mnt/cache/appdata/resilio-sync/config` to keep SQLite writes off the parity array).
-   - **Sync Root Share Path (`/sync`):** `/mnt/user/sync` (or any share you want to synchronize).
+   - **Users Share Path (`/users`):** `/mnt/user/users`
+   - **Shared Share Path (`/shared`):** `/mnt/user/shared`
+   - **Other Share Path (`/other`):** `/mnt/user/other`
+   - **Downloads Share Path (`/downloads`):** `/mnt/user/downloads`
 3. Click **Apply**.
    - Pre-configured with Unraid's native `PUID=99` (`nobody`), `PGID=100` (`users`), and `UMASK=002` (`775` directories / `664` files) so SMB shares and Resilio Sync coexist without permission conflicts.
    - Health telemetry binds to port `9198` (`http://<unraid-ip>:9198/status`), avoiding port collisions alongside `manta` (`:9199`), `barracuda` (`:9299`), and `urchin` (`:9399`).
@@ -85,7 +88,7 @@ Synology DSM defaults `fs.inotify.max_user_watches` to `8192`. Once your synced 
 4. Click **OK**, then right-click the task and select **Run** once to apply it immediately.
 
 #### Step 2: Deploy in Container Manager
-1. Create the persistent directories on your volume (e.g. `/volume1/docker/resilio-sync/config` and `/volume1/sync`) and grant Read/Write access to your admin user (`UID 1026`, `GID 100`) in DSM **File Station**.
+1. Create the persistent directories on your volume (`/volume1/docker/resilio-sync/config`, `/volume1/users`, `/volume1/shared`, `/volume1/other`, and `/volume1/downloads`) and grant Read/Write access to your admin user (`UID 1026`, `GID 100`) in DSM **File Station**.
 2. Open **Container Manager** &rarr; **Project** &rarr; **Create**, and paste [`assets/compose.synology.yaml`](assets/compose.synology.yaml):
 
 ```yaml
@@ -106,7 +109,7 @@ services:
       - WEBUI_PORT=8888
       - SYNC_PORT=55555
       - HEALTH_PORT=9198
-      - SEED_IGNORE_LIST=true
+      - SEED_IGNORE_LIST=false
       - DROP_PRIVS=true
     ports:
       - "8888:8888/tcp"
@@ -115,7 +118,10 @@ services:
       - "127.0.0.1:9198:9198/tcp"
     volumes:
       - /volume1/docker/resilio-sync/config:/config:rw
-      - /volume1/sync:/sync:rw
+      - /volume1/users:/users:rw
+      - /volume1/shared:/shared:rw
+      - /volume1/other:/other:rw
+      - /volume1/downloads:/downloads:rw
     healthcheck:
       test: ["CMD", "/bin/rslsync-health", "--check"]
       interval: 30s
@@ -123,7 +129,7 @@ services:
       retries: 3
 ```
 
-Because `rslsync-init` never runs `chown -R` or `chmod -R` on `/sync`, your Synology Btrfs `synoacl` permissions remain untouched, and `SEED_IGNORE_LIST=true` prevents `@eaDir`, `#recycle`, and `#snapshot` directories from syncing to other devices.
+Because `rslsync-init` never runs `chown -R` or `chmod -R` on `/users`, `/shared`, `/other`, or `/downloads`, your Synology Btrfs `synoacl` permissions remain untouched. Set `SEED_IGNORE_LIST=true` if you want `@eaDir`, `#recycle`, and `#snapshot` seeded into `.sync/IgnoreList` automatically.
 
 ---
 
@@ -131,13 +137,13 @@ Because `rslsync-init` never runs `chown -R` or `chmod -R` on `/sync`, your Syno
 
 [`assets/resilio-sync.container`](assets/resilio-sync.container) is a native `systemd` Podman Quadlet unit configured with:
 - `UserNS=keep-id:uid=1000,gid=1000` so container `UID 1000` maps cleanly to your Fedora user on disk.
-- `:Z` (private SELinux label on `/config`) and `:z` (shared SELinux label on `/sync` so Samba, NFS, or other containers can share the volume under `SELinux Enforcing`).
+- `:Z` (private SELinux label on `/config`) and `:z` (shared SELinux label on `/users`, `/shared`, `/other`, and `/downloads` so Samba, NFS, or other containers can share the volumes under `SELinux Enforcing`).
 - `ExecStop=/usr/bin/podman exec resilio-sync /bin/rslsync-init --shutdown` for a clean 10-second SQLite WAL checkpoint on service stop.
 
 ```bash
 # 1. Create host directories
-sudo mkdir -p /var/lib/resilio-sync/config /srv/sync
-sudo chown -R 1000:1000 /var/lib/resilio-sync/config /srv/sync
+sudo mkdir -p /var/lib/resilio-sync/config /srv/resilio-sync/{users,shared,other,downloads}
+sudo chown 1000:1000 /var/lib/resilio-sync/config /srv/resilio-sync/{users,shared,other,downloads}
 
 # 2. Install the Quadlet unit and start the service
 sudo cp assets/resilio-sync.container /etc/containers/systemd/
@@ -170,7 +176,10 @@ docker run -d \
   -e UMASK=002 \
   -e DEVICE_NAME=resilio-sync \
   -v /srv/resilio-sync/config:/config:rw \
-  -v /srv/resilio-sync/sync:/sync:rw \
+  -v /srv/resilio-sync/users:/users:rw \
+  -v /srv/resilio-sync/shared:/shared:rw \
+  -v /srv/resilio-sync/other:/other:rw \
+  -v /srv/resilio-sync/downloads:/downloads:rw \
   ghcr.io/ubermetroid/resilio-sync-container:latest
 ```
 
@@ -185,7 +194,7 @@ docker run -d \
    - Request your free key from Resilio's official v3 registration page (or locate your existing `.btskey` file).
    - In the WebUI, click the **Gear icon (Preferences)** in the top-right corner &rarr; **License** &rarr; **Apply license** and upload your `.btskey` file.
 4. **License persistence:** Your identity, peer certificates, folder database, and applied license are stored inside `/config/storage` (`settings.dat` and `storage.db`). As long as `/config` is mounted to persistent host storage, container upgrades and restarts preserve your license and peer identity automatically.
-5. **Adding folders:** When adding a Standard or Advanced folder in the WebUI, the folder picker defaults directly to `/sync` (enforced via `"directory_root_policy": "belowroot"`, `"directory_root": "/sync/"`, and `"files_default_path": "/sync"`).
+5. **Adding folders:** The WebUI folder picker is restricted via `webui.dir_whitelist` exclusively to `/users`, `/shared`, `/other`, and `/downloads`, with `"files_default_path": "/downloads"` as the default folder destination.
 
 ---
 
@@ -214,8 +223,10 @@ If you keep the container in standard `bridge` network mode (recommended for por
 | Container Path | Purpose | Ownership Behavior on Startup |
 | :--- | :--- | :--- |
 | `/config` | Holds `/config/sync.conf` and `/config/storage/` (`settings.dat`, `storage.db`, `sync.pid`, `http.port`) | Created if missing; `chown -R PUID:PGID /config` is applied so `rslsync` can always read/write its SQLite state. |
-| `/sync` | Root directory for all synchronized folders (`directory_root`) | Created if missing; top-level `chown PUID:PGID /sync` only. **Never touched by `chown -R` or `chmod -R`.** |
-| `/sync/<folder>/.sync/IgnoreList` | Per-folder Resilio exclusion list | When `SEED_IGNORE_LIST=true`, appends missing NAS metadata patterns (`@eaDir`, `#recycle`, `#snapshot`, `.Recycle.Bin`, `.Trash-*`) idempotently once per folder. |
+| `/users` | Top-level user home/profile sync folders (`webui.dir_whitelist`) | Created if missing; top-level `chown PUID:PGID /users` only. **Never touched by `chown -R` or `chmod -R`.** |
+| `/shared` | Top-level shared team/family folders (`webui.dir_whitelist`) | Created if missing; top-level `chown PUID:PGID /shared` only. **Never touched by `chown -R` or `chmod -R`.** |
+| `/other` | Top-level miscellaneous sync folders (`webui.dir_whitelist`) | Created if missing; top-level `chown PUID:PGID /other` only. **Never touched by `chown -R` or `chmod -R`.** |
+| `/downloads` | Top-level downloads & default sync folder path (`files_default_path`) | Created if missing; top-level `chown PUID:PGID /downloads` only. **Never touched by `chown -R` or `chmod -R`.** |
 
 ### Environment Variables
 
@@ -229,7 +240,7 @@ If you keep the container in standard `bridge` network mode (recommended for por
 | `SYNC_PORT` | `55555` | P2P TCP/UDP listening port rendered into `/config/sync.conf` (`1024..=65535`). |
 | `HEALTH_PORT` | `9198` | HTTP listening port for `rslsync-health` (`GET /status`). Must not collide with `WEBUI_PORT` or `SYNC_PORT`. |
 | `HEALTH_BIND` | `0.0.0.0` | Bind address for `rslsync-health` (set to `127.0.0.1` for loopback-only access in `--network=host` mode). |
-| `SEED_IGNORE_LIST` | `true` | Automatically seed NAS/OS metadata exclusions (`@eaDir`, `#recycle`, `.Recycle.Bin`, etc.) into existing `/sync/*/.sync/IgnoreList` files. |
+| `SEED_IGNORE_LIST` | `false` | Opt-in (`SEED_IGNORE_LIST=true` to enable): seed NAS/OS metadata exclusions (`@eaDir`, `#recycle`, `.Recycle.Bin`, etc.) into existing `.sync/IgnoreList` files under `/users`, `/shared`, `/other`, and `/downloads`. |
 | `DROP_PRIVS` | `true` | Drop privileges from `root` to `PUID:PGID` via `setpriv --reuid --regid --clear-groups` before spawning `rslsync`. |
 | `SYNC_CONF_PATH` | `/config/sync.conf` | Path to the active Resilio Sync JSON configuration file. |
 

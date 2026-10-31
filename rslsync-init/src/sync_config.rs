@@ -43,10 +43,12 @@ impl SyncEnvConfig {
                 .unwrap_or(9198),
             seed_ignore_list: env::var("SEED_IGNORE_LIST")
                 .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-                .unwrap_or(true),
+                .unwrap_or(false),
         }
     }
 }
+
+pub const DATA_ROOT_DIRS: [&str; 4] = ["/users", "/shared", "/other", "/downloads"];
 
 pub fn sanitize_device_name(raw: &str, fallback: &str) -> String {
     let trimmed = raw.trim();
@@ -162,15 +164,16 @@ pub fn ensure_directories_and_ownership(
             let _ = fs::set_permissions(d, Permissions::from_mode(dir_mode));
         }
     }
-    if !Path::new("/sync").exists() {
-        let _ = fs::create_dir_all("/sync");
-        let _ = fs::set_permissions("/sync", Permissions::from_mode(0o777 & !umask_val));
+    for d in DATA_ROOT_DIRS {
+        if !Path::new(d).exists() {
+            let _ = fs::create_dir_all(d);
+            let _ = fs::set_permissions(d, Permissions::from_mode(0o777 & !umask_val));
+        }
+        if seed_ignores {
+            seed_folder_ignore_lists(Path::new(d));
+        }
     }
     let _ = fs::set_permissions("/tmp", Permissions::from_mode(0o1777));
-
-    if seed_ignores {
-        seed_folder_ignore_lists(Path::new("/sync"));
-    }
 
     if is_root {
         synthesize_nss_entries(
@@ -179,12 +182,14 @@ pub fn ensure_directories_and_ownership(
             puid,
             pgid,
         );
-        // Strictly chown -R /config only; on /sync ONLY top-level non-recursive chown (never -R!)
+        // Strictly chown -R /config only; on data roots ONLY top-level non-recursive chown (never -R!)
         let owner = format!("{puid}:{pgid}");
         let _ = Command::new("chown")
             .args(["-R", &owner, "/config"])
             .status();
-        let _ = Command::new("chown").args([&owner, "/sync"]).status();
+        for d in DATA_ROOT_DIRS {
+            let _ = Command::new("chown").args([&owner, d]).status();
+        }
     }
 }
 

@@ -25,7 +25,7 @@ Environment=DEVICE_NAME=fedora-resilio-sync
 Environment=WEBUI_PORT=8888
 Environment=SYNC_PORT=55555
 Environment=HEALTH_PORT=9198
-Environment=SEED_IGNORE_LIST=true
+Environment=SEED_IGNORE_LIST=false
 Environment=DROP_PRIVS=true
 
 PublishPort=8888:8888/tcp
@@ -33,9 +33,12 @@ PublishPort=55555:55555/tcp
 PublishPort=55555:55555/udp
 PublishPort=127.0.0.1:9198:9198/tcp
 
-# :Z applies private SELinux label to /config; :z applies shared SELinux label to /sync
+# :Z applies private SELinux label to /config; :z applies shared SELinux label to data shares
 Volume=/var/lib/resilio-sync/config:/config:Z
-Volume=/srv/sync:/sync:z
+Volume=/srv/resilio-sync/users:/users:z
+Volume=/srv/resilio-sync/shared:/shared:z
+Volume=/srv/resilio-sync/other:/other:z
+Volume=/srv/resilio-sync/downloads:/downloads:z
 
 HealthCmd=/bin/rslsync-health --check
 HealthInterval=30s

@@ -131,7 +131,7 @@
       <div class="subtitle">Resilio Sync v3 (3.1.2.1076-1) Appliance for Unraid, Synology NAS &amp; Fedora Server</div>
       <div class="badges">
         <span class="badge">Resilio Sync v3.1.2.1076-1</span>
-        <span class="badge blue">Release v0.2.0</span>
+        <span class="badge blue">Release v0.3.0</span>
         <span class="badge">Zero External Rust Crates (std only)</span>
         <span class="badge purple">#![forbid(unsafe_code)] &bull; No Shell</span>
         <span class="badge blue">GNU Guix &amp; Nix Reproducible</span>
@@ -140,14 +140,15 @@
       <p>
         <strong>Resilio Sync v3 is now free for everyone, but the official Docker Hub image stopped at v2.8.1.</strong>
         This container packages the SHA256-pinned Resilio Sync v3 binary with three static Rust supervision tools
-        (<code>rslsync-init</code>, <code>rslsync-config</code>, <code>rslsync-health</code>) that protect your NAS ACLs,
+        (<code>rslsync-init</code>, <code>rslsync-config</code>, <code>rslsync-health</code>) and five top-level directories
+        (<code>/config</code>, <code>/users</code>, <code>/shared</code>, <code>/other</code>, <code>/downloads</code>) that protect your NAS ACLs,
         catch bad <code>sync.conf</code> edits before they crash the daemon, and track live WebUI port changes automatically.
       </p>
       <div class="btn-row">
         <a class="btn" href="#setup">60-Second Platform Setup &rarr;</a>
         <a class="btn secondary" href="https://github.com/UberMetroid/resilio-sync-container">Source on GitHub</a>
         <a class="btn secondary" href="https://github.com/UberMetroid/resilio-sync-container/pkgs/container/resilio-sync-container">GHCR Package</a>
-        <a class="btn secondary" href="https://github.com/UberMetroid/resilio-sync-container/releases/tag/v0.2.0">Release v0.2.0</a>
+        <a class="btn secondary" href="https://github.com/UberMetroid/resilio-sync-container/releases/tag/v0.3.0">Release v0.3.0</a>
       </div>
     </section>
 
@@ -155,7 +156,7 @@
       <div class="ticker-track">
         <span class="chip">RESILIO SYNC V3.1.2.1076-1</span>
         <span class="chip">LIVE HTTP.PORT HEALTH PROBE</span>
-        <span class="chip">NEVER CHOWN -R /SYNC</span>
+        <span class="chip">TOP-LEVEL /USERS /SHARED /OTHER /DOWNLOADS /CONFIG</span>
         <span class="chip">PRESERVES SYNOLOGY BTRFS SYNOACL</span>
         <span class="chip">UNRAID SHFS &amp; APPDATA READY</span>
         <span class="chip">FEDORA PODMAN QUADLET + SELINUX :Z/:z</span>
@@ -163,7 +164,7 @@
         <span class="chip">10S SQLITE WAL SHUTDOWN WINDOW</span>
         <span class="chip">RESILIO SYNC V3.1.2.1076-1</span>
         <span class="chip">LIVE HTTP.PORT HEALTH PROBE</span>
-        <span class="chip">NEVER CHOWN -R /SYNC</span>
+        <span class="chip">TOP-LEVEL /USERS /SHARED /OTHER /DOWNLOADS /CONFIG</span>
         <span class="chip">PRESERVES SYNOLOGY BTRFS SYNOACL</span>
         <span class="chip">UNRAID SHFS &amp; APPDATA READY</span>
         <span class="chip">FEDORA PODMAN QUADLET + SELINUX :Z/:z</span>
@@ -174,9 +175,9 @@
 
     <div class="stat-row">
       <div class="stat"><div class="n">3.1.2.1076</div><div class="l">SHA256-pinned Resilio Sync v3 upstream package, where all Pro features are now free.</div></div>
-      <div class="stat"><div class="n">0</div><div class="l">Recursive <code>chown -R</code> calls on <code>/sync</code>. Synology ACLs and Unraid arrays stay untouched.</div></div>
+      <div class="stat"><div class="n">0</div><div class="l">Recursive <code>chown -R</code> calls on data mounts (<code>/users</code>, <code>/shared</code>, <code>/other</code>, <code>/downloads</code>).</div></div>
       <div class="stat"><div class="n">:9198/status</div><div class="l">Live JSON health endpoint &amp; CLI probe tracking GUI port changes via <code>http.port</code>.</div></div>
-      <div class="stat"><div class="n">3</div><div class="l">Pure-<code>std</code> Rust binaries (<code>rslsync-init</code>, <code>rslsync-config</code>, <code>rslsync-health</code>) with zero external crates.</div></div>
+      <div class="stat"><div class="n">5</div><div class="l">Dedicated top-level mounts: <code>/config</code>, <code>/users</code>, <code>/shared</code>, <code>/other</code>, and <code>/downloads</code>.</div></div>
     </div>
 
     <section id="why">
@@ -196,14 +197,14 @@
           <p>Third-party images that hardcode <code>nc -z localhost 8888</code> in their healthcheck fail as soon as you change the WebUI port in Preferences, causing Docker to restart the container in a loop. <code>rslsync-health</code> reads <code>http.port</code> first and falls back to <code>sync.conf</code>.</p>
         </div>
         <div class="card">
-          <h3><span class="step">03</span>Broken Default Folder Paths (<code>/downloads</code> vs <code>/sync</code>)</h3>
-          <p class="lead">Mismatched <code>files_default_path</code> breaks the WebUI folder picker.</p>
-          <p>Images like <code>linuxserver/resilio-sync</code> ship <code>"directory_root": "/sync/"</code> alongside <code>"files_default_path": "/downloads"</code>. Because <code>/downloads</code> is outside <code>/sync/</code>, creating folders in the GUI fails. Here, both default cleanly to <code>/sync</code> and are verified pre-flight by <code>rslsync-config</code>.</p>
+          <h3><span class="step">03</span>Clean Top-Level Share Whitelist</h3>
+          <p class="lead">Dedicated <code>/users</code>, <code>/shared</code>, <code>/other</code>, and <code>/downloads</code> roots.</p>
+          <p>Images like <code>linuxserver/resilio-sync</code> ship <code>"directory_root": "/sync/"</code> alongside <code>"files_default_path": "/downloads"</code>, causing folder creation to fail. Here, <code>webui.dir_whitelist</code> exposes <code>/users</code>, <code>/shared</code>, <code>/other</code>, and <code>/downloads</code> cleanly with <code>/downloads</code> as default.</p>
         </div>
         <div class="card">
-          <h3><span class="step">04</span>NAS ACL Destruction &amp; Metadata Pollution</h3>
+          <h3><span class="step">04</span>NAS ACL Preservation &amp; Opt-In Ignore Seeding</h3>
           <p class="lead">Never run <code>chown -R</code> on multi-terabyte NAS shares.</p>
-          <p>Recursive <code>chown -R</code> on <code>/sync</code> strips Synology DSM Btrfs <code>synoacl</code> permissions and stalls Unraid <code>shfs</code> mounts. <code>rslsync-init</code> only applies recursive ownership to <code>/config</code> and automatically seeds <code>@eaDir</code>, <code>#recycle</code>, and <code>.Recycle.Bin</code> into <code>/sync/*/.sync/IgnoreList</code>.</p>
+          <p>Recursive <code>chown -R</code> on data mounts strips Synology DSM Btrfs <code>synoacl</code> permissions and stalls Unraid <code>shfs</code> mounts. <code>rslsync-init</code> only applies recursive ownership to <code>/config</code> and leaves your data files untouched unless you explicitly opt into <code>SEED_IGNORE_LIST=true</code>.</p>
         </div>
       </div>
     </section>
@@ -221,14 +222,14 @@
   -o /boot/config/plugins/dockerMan/templates-user/my-resilio-sync.xml</pre>
           <ul>
             <li>In Unraid: <strong>Docker &rarr; Add Container &rarr; select <code>resilio-sync-container</code> &rarr; Apply</strong>.</li>
-            <li>Maps <code>/config</code> to <code>/mnt/user/appdata/resilio-sync/config</code> and <code>/sync</code> to <code>/mnt/user/sync</code>.</li>
+            <li>Maps <code>/config</code>, <code>/users</code>, <code>/shared</code>, <code>/other</code>, and <code>/downloads</code> directly to your Unraid shares.</li>
             <li>Port <code>9198</code> avoids conflicts with <code>manta</code> (<code>:9199</code>), <code>barracuda</code> (<code>:9299</code>), and <code>urchin</code> (<code>:9399</code>).</li>
           </ul>
         </div>
 
         <div class="card">
           <h3><span class="step">B</span>Synology NAS (DSM 7.2+ Container Manager)</h3>
-          <p class="lead">Preserves Btrfs <code>synoacl</code> permissions and excludes <code>@eaDir</code>, <code>#recycle</code>, and <code>#snapshot</code>.</p>
+          <p class="lead">Preserves Btrfs <code>synoacl</code> permissions across <code>/users</code>, <code>/shared</code>, <code>/other</code>, and <code>/downloads</code>.</p>
           <p><strong>1. Raise Synology's low 8192 <code>inotify</code> limit</strong> (Control Panel &rarr; Task Scheduler &rarr; Triggered Task &rarr; Boot-up as <code>root</code>):</p>
 <pre>sysctl -w fs.inotify.max_user_watches=524288</pre>
           <p><strong>2. Deploy in Container Manager &rarr; Project</strong> (<a href="https://github.com/UberMetroid/resilio-sync-container/blob/main/assets/compose.synology.yaml"><code>assets/compose.synology.yaml</code></a>):</p>
@@ -249,7 +250,7 @@
       - WEBUI_PORT=8888
       - SYNC_PORT=55555
       - HEALTH_PORT=9198
-      - SEED_IGNORE_LIST=true
+      - SEED_IGNORE_LIST=false
       - DROP_PRIVS=true
     ports:
       - "8888:8888/tcp"
@@ -258,7 +259,10 @@
       - "127.0.0.1:9198:9198/tcp"
     volumes:
       - /volume1/docker/resilio-sync/config:/config:rw
-      - /volume1/sync:/sync:rw
+      - /volume1/users:/users:rw
+      - /volume1/shared:/shared:rw
+      - /volume1/other:/other:rw
+      - /volume1/downloads:/downloads:rw
     healthcheck:
       test: ["CMD", "/bin/rslsync-health", "--check"]
       interval: 30s
@@ -270,8 +274,8 @@
           <h3><span class="step">C</span>Fedora Server (Podman Quadlet + SELinux)</h3>
           <p class="lead">Uses <code>UserNS=keep-id:uid=1000,gid=1000</code> and SELinux <code>:Z</code> / <code>:z</code> volume relabeling.</p>
 <pre># 1. Create host directories
-sudo mkdir -p /var/lib/resilio-sync/config /srv/sync
-sudo chown -R 1000:1000 /var/lib/resilio-sync/config /srv/sync
+sudo mkdir -p /var/lib/resilio-sync/config /srv/resilio-sync/{users,shared,other,downloads}
+sudo chown 1000:1000 /var/lib/resilio-sync/config /srv/resilio-sync/{users,shared,other,downloads}
 
 # 2. Install systemd Quadlet unit
 sudo curl -fsSL https://raw.githubusercontent.com/UberMetroid/resilio-sync-container/main/assets/resilio-sync.container \
@@ -303,7 +307,10 @@ sudo firewall-cmd --reload</pre>
   -e UMASK=002 \
   -e DEVICE_NAME=resilio-sync \
   -v /srv/resilio-sync/config:/config:rw \
-  -v /srv/resilio-sync/sync:/sync:rw \
+  -v /srv/resilio-sync/users:/users:rw \
+  -v /srv/resilio-sync/shared:/shared:rw \
+  -v /srv/resilio-sync/other:/other:rw \
+  -v /srv/resilio-sync/downloads:/downloads:rw \
   ghcr.io/ubermetroid/resilio-sync-container:latest</pre>
         </div>
       </div>
@@ -326,9 +333,9 @@ sudo firewall-cmd --reload</pre>
           <p>Upload your free Resilio Sync v3 <code>.btskey</code> file. The license and device identity are saved inside <code>/config/storage</code> and persist across container updates.</p>
         </div>
         <div class="card">
-          <h3><span class="step">03</span>Add Folders Under <code>/sync</code></h3>
-          <p class="lead">Folder picker opens directly inside <code>/sync</code></p>
-          <p>Any existing shared folder with a <code>.sync/IgnoreList</code> automatically receives exclusions for <code>@eaDir</code>, <code>#recycle</code>, <code>#snapshot</code>, <code>.Recycle.Bin</code>, and <code>.Trash-*</code>.</p>
+          <h3><span class="step">03</span>Add Folders Across Your Top-Level Shares</h3>
+          <p class="lead">Folder picker whitelists <code>/users</code>, <code>/shared</code>, <code>/other</code>, and <code>/downloads</code></p>
+          <p>Defaults to <code>/downloads</code> while exposing all four top-level shares. Set <code>SEED_IGNORE_LIST=true</code> if you want NAS metadata exclusions seeded into existing <code>.sync/IgnoreList</code> files.</p>
         </div>
       </div>
     </section>
@@ -393,7 +400,7 @@ sudo firewall-cmd --reload</pre>
               <tr><td><code>SYNC_PORT</code></td><td><code>55555</code></td><td>P2P TCP/UDP listening port (<code>1024..=65535</code>)</td></tr>
               <tr><td><code>HEALTH_PORT</code></td><td><code>9198</code></td><td>Health HTTP server port (<code>:9198/status</code>)</td></tr>
               <tr><td><code>HEALTH_BIND</code></td><td><code>0.0.0.0</code></td><td>Health bind IP (use <code>127.0.0.1</code> in host net mode)</td></tr>
-              <tr><td><code>SEED_IGNORE_LIST</code></td><td><code>true</code></td><td>Seed NAS metadata exclusions into <code>.sync/IgnoreList</code></td></tr>
+              <tr><td><code>SEED_IGNORE_LIST</code></td><td><code>false</code></td><td>Opt-in (<code>SEED_IGNORE_LIST=true</code>): seed NAS metadata exclusions into <code>.sync/IgnoreList</code></td></tr>
               <tr><td><code>DROP_PRIVS</code></td><td><code>true</code></td><td>Drop from <code>root</code> to <code>PUID:PGID</code> via <code>setpriv</code></td></tr>
             </tbody>
           </table>
@@ -447,7 +454,7 @@ guix pack -f docker --entry-point=/bin/rslsync-init -S /bin=bin -S /etc=etc -S /
     </section>
 
     <footer>
-      resilio-sync-container v0.2.0 &bull;
+      resilio-sync-container v0.3.0 &bull;
       <a href="https://github.com/UberMetroid/resilio-sync-container">Source on GitHub</a> &bull;
       <a href="https://github.com/UberMetroid/resilio-sync-container/pkgs/container/resilio-sync-container">GHCR Image</a> &bull;
       <a href="https://github.com/UberMetroid/resilio-sync-container/releases">Releases</a> &bull;

@@ -61,7 +61,7 @@
 
           rslsync-suite = pkgs.rustPlatform.buildRustPackage {
             pname = "rslsync-suite";
-            version = "0.2.0";
+            version = "0.3.0";
             src = ./.;
             cargoLock.lockFile = ./Cargo.lock;
             postInstall = ''
@@ -89,7 +89,7 @@
             ];
 
             extraCommands = ''
-              mkdir -p config config/storage sync tmp etc
+              mkdir -p config config/storage users shared other downloads tmp etc
               chmod 1777 tmp
               for f in etc/passwd etc/group; do
                 if [ -L "$f" ]; then
@@ -121,7 +121,10 @@
               };
               Volumes = {
                 "/config" = {};
-                "/sync" = {};
+                "/users" = {};
+                "/shared" = {};
+                "/other" = {};
+                "/downloads" = {};
               };
               Env = [
                 "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"

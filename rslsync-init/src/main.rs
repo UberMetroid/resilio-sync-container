@@ -97,7 +97,9 @@ fn supervise_loop(ctx: &DaemonContext<'_>, mut sync_child: Child, mut health_chi
         if last_watch.elapsed() >= Duration::from_secs(5) {
             last_watch = Instant::now();
             if ctx.seed_ignores {
-                sync_config::seed_folder_ignore_lists(Path::new("/sync"));
+                for d in sync_config::DATA_ROOT_DIRS {
+                    sync_config::seed_folder_ignore_lists(Path::new(d));
+                }
             }
             let current_mtime = file_mtime(conf_path);
             if current_mtime.is_some() && current_mtime != last_mtime {

@@ -18,7 +18,7 @@ services:
       - WEBUI_PORT=8888
       - SYNC_PORT=55555
       - HEALTH_PORT=9198
-      - SEED_IGNORE_LIST=true
+      - SEED_IGNORE_LIST=false
       - DROP_PRIVS=true
     ports:
       - "8888:8888/tcp"
@@ -27,7 +27,10 @@ services:
       - "127.0.0.1:9198:9198/tcp"
     volumes:
       - /volume1/docker/resilio-sync/config:/config:rw
-      - /volume1/sync:/sync:rw
+      - /volume1/users:/users:rw
+      - /volume1/shared:/shared:rw
+      - /volume1/other:/other:rw
+      - /volume1/downloads:/downloads:rw
     healthcheck:
       test: ["CMD", "/bin/rslsync-health", "--check"]
       interval: 30s
