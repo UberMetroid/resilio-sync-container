@@ -68,7 +68,7 @@ fn supervise_loop(ctx: &DaemonContext<'_>, mut sync_child: Child, mut health_chi
                 ctx.is_root,
                 ctx.seed_ignores,
             );
-            if let Ok(c) = spawn_daemon_process(
+            sync_child = spawn_or_exit(spawn_daemon_process(
                 rslsync_bin,
                 &["--nodaemon", "--config", ctx.sync_conf_path],
                 ctx.puid,
@@ -76,16 +76,14 @@ fn supervise_loop(ctx: &DaemonContext<'_>, mut sync_child: Child, mut health_chi
                 ctx.umask_val,
                 ctx.is_root,
                 ctx.drop_privs,
-            ) {
-                sync_child = c;
-            }
+            ));
         }
 
         if let Ok(Some(st)) = health_child.try_wait() {
             log(&format!(
                 "WARN: rslsync-health exited with {st}; restarting..."
             ));
-            if let Ok(c) = spawn_daemon_process(
+            health_child = spawn_or_exit(spawn_daemon_process(
                 "/bin/rslsync-health",
                 &[],
                 ctx.puid,
@@ -93,13 +91,14 @@ fn supervise_loop(ctx: &DaemonContext<'_>, mut sync_child: Child, mut health_chi
                 ctx.umask_val,
                 ctx.is_root,
                 ctx.drop_privs,
-            ) {
-                health_child = c;
-            }
+            ));
         }
 
         if last_watch.elapsed() >= Duration::from_secs(5) {
             last_watch = Instant::now();
+            if ctx.seed_ignores {
+                sync_config::seed_folder_ignore_lists(Path::new("/sync"));
+            }
             let current_mtime = file_mtime(conf_path);
             if current_mtime.is_some() && current_mtime != last_mtime {
                 log("Detected sync.conf modification; validating before restarting rslsync...");

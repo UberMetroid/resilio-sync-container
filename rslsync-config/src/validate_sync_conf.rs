@@ -4,7 +4,7 @@ use crate::json_parser::{parse_sync_conf_json, JsonValue};
 
 #[rustfmt::skip]
 const ALLOWED_TOP_KEYS: &[&str] = &[
-    "device_name", "listening_port", "storage_path", "pid_file", "use_upnp",
+    "device_name", "listening_port", "storage_path", "pid_file", "use_upnp", "use_gui",
     "download_limit", "upload_limit", "directory_root", "directory_root_policy",
     "files_default_path", "vendor", "display_new_version", "lan_encrypt_data",
     "rate_limit_local_peers", "folder_rescan_interval", "max_file_size_for_versioning",
@@ -23,8 +23,9 @@ const ALLOWED_TOP_KEYS: &[&str] = &[
 
 #[rustfmt::skip]
 const ALLOWED_WEBUI_KEYS: &[&str] = &[
-    "listen", "login", "password", "password_hash", "password_hash_unified", "allow_empty_password",
-    "dir_whitelist", "force_https", "ssl_certificate", "ssl_private_key", "api_key", "context",
+    "listen", "login", "password", "password_hash", "password_hash_unified",
+    "password_hash_salt_unified", "allow_empty_password", "dir_whitelist", "force_https",
+    "ssl_certificate", "ssl_private_key", "api_key", "context",
 ];
 
 #[derive(Debug, Clone, PartialEq)]
@@ -57,9 +58,14 @@ fn is_confined_to(path_str: &str, base: &str) -> bool {
 
 pub fn parse_host_port(addr: &str) -> Result<u16, String> {
     let trimmed = addr.trim();
-    let (_, port_str) = trimmed
+    let (host, port_str) = trimmed
         .rsplit_once(':')
         .ok_or_else(|| format!("webui.listen '{trimmed}' must be in host:port format"))?;
+    if host.is_empty() || (host.contains(':') && !(host.starts_with('[') && host.ends_with(']'))) {
+        return Err(format!(
+            "Invalid host in webui.listen '{trimmed}' (use [ipv6]:port for IPv6)"
+        ));
+    }
     let port: u16 = port_str
         .parse()
         .map_err(|_| format!("Invalid port in webui.listen '{trimmed}'"))?;
@@ -102,9 +108,10 @@ pub fn validate_sync_conf_str(raw: &str, health_port: u16) -> Result<ValidatedSy
         ));
     }
 
+    let default_pid = format!("{}/sync.pid", storage_path.trim_end_matches('/'));
     let pid_file = find_key(obj, "pid_file")
         .and_then(JsonValue::as_str)
-        .unwrap_or("/config/storage/sync.pid");
+        .unwrap_or(&default_pid);
     if !is_confined_to(pid_file, "/config")
         || pid_file.trim_end_matches('/') == "/config"
         || pid_file.ends_with('/')
@@ -202,11 +209,15 @@ mod tests {
         assert_eq!(v.webui_port, 8888);
         assert_eq!(v.storage_path, "/config/storage");
 
-        let with_proxy = SAMPLE_CONF.replace(
-            "\"use_upnp\": false,",
-            "\"use_upnp\": false, \"proxy_type\": \"SOCKS5\", \"search_lan\": true,",
-        );
-        assert!(validate_sync_conf_str(&with_proxy, 9198).is_ok());
+        let with_proxy = SAMPLE_CONF
+            .replace(
+                "\"use_upnp\": false,",
+                "\"use_upnp\": false, \"use_gui\": true, \"proxy_type\": \"SOCKS5\", \"search_lan\": true,",
+            )
+            .replace("\"/config/storage\"", "\"/config/custom_storage\"")
+            .replace("        \"pid_file\": \"/config/storage/sync.pid\",\n", "");
+        let v2 = validate_sync_conf_str(&with_proxy, 9198).unwrap();
+        assert_eq!(v2.pid_file, "/config/custom_storage/sync.pid");
     }
 
     #[test]
@@ -224,6 +235,9 @@ mod tests {
         let lsio_bug = SAMPLE_CONF.replace("\"/sync\"", "\"/downloads\"");
         assert!(validate_sync_conf_str(&lsio_bug, 9198).is_err());
         assert!(validate_sync_conf_str(SAMPLE_CONF, 8888).is_err());
+        assert!(parse_host_port("::1").is_err());
+        assert!(parse_host_port("0.0.0.0:8888:9999").is_err());
+        assert_eq!(parse_host_port("[::]:8888").unwrap(), 8888);
 
         let traversal = SAMPLE_CONF.replace("\"/config/storage\"", "\"/config/../etc\"");
         assert!(validate_sync_conf_str(&traversal, 9198).is_err());

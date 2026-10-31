@@ -32,4 +32,5 @@
   <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="Unprivileged user UID (Unraid nobody=99)" Type="Variable" Display="advanced" Required="false" Mask="false">99</Config>
   <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="Unprivileged group GID (Unraid users=100)" Type="Variable" Display="advanced" Required="false" Mask="false">100</Config>
   <Config Name="UMASK" Target="UMASK" Default="002" Mode="" Description="File creation umask (002 = 775 dirs / 664 files)" Type="Variable" Display="advanced" Required="false" Mask="false">002</Config>
+  <Config Name="Health Bind Address" Target="HEALTH_BIND" Default="0.0.0.0" Mode="" Description="Bind address for the :9198/status telemetry server (set to 127.0.0.1 when using --network=host)" Type="Variable" Display="advanced" Required="false" Mask="false">0.0.0.0</Config>
 </Container>

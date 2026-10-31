@@ -142,9 +142,13 @@ pub fn file_mtime(path: &Path) -> Option<SystemTime> {
 }
 
 pub fn terminate_children(children: &mut [Child]) {
+    let kill_bin = ["/bin/kill", "/usr/bin/kill"]
+        .into_iter()
+        .find(|p| Path::new(p).exists())
+        .unwrap_or("kill");
     for child in children.iter() {
         let pid_str = child.id().to_string();
-        let _ = Command::new("kill").args(["-TERM", &pid_str]).status();
+        let _ = Command::new(kill_bin).args(["-TERM", &pid_str]).status();
     }
     // Poll up to 10 seconds (20 x 500ms) so rslsync checkpoints SQLite storage.db-wal cleanly
     for _ in 0..20 {

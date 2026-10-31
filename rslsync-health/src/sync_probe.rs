@@ -184,10 +184,12 @@ pub fn probe_webui_http(port: u16) -> bool {
         return false;
     };
     let status_line = String::from_utf8_lossy(&buf[..n]);
-    status_line.starts_with("HTTP/1.1 200")
-        || status_line.starts_with("HTTP/1.1 301")
+    status_line.starts_with("HTTP/1.1 2")
+        || status_line.starts_with("HTTP/1.1 3")
         || status_line.starts_with("HTTP/1.1 401")
-        || status_line.starts_with("HTTP/1.0 200")
+        || status_line.starts_with("HTTP/1.0 2")
+        || status_line.starts_with("HTTP/1.0 3")
+        || status_line.starts_with("HTTP/1.0 401")
 }
 
 pub fn probe_tcp_port(port: u16) -> bool {
