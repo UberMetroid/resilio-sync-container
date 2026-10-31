@@ -115,6 +115,8 @@ fn test_manifests_and_multi_platform_templates() -> Result<(), Box<dyn std::erro
     let ci_yml =
         fs::read_to_string(workspace_root.join(".github/workflows/build-and-publish.yml"))?;
     assert!(ci_yml.contains("docker/login-action@v3"));
+    assert!(ci_yml.contains("libcrypt1"));
+    assert!(!ci_yml.contains("libxcrypt1"));
     assert!(ci_yml.contains("docker push ghcr.io/ubermetroid/resilio-sync-container:latest"));
     assert!(ci_yml.contains("docker push ghcr.io/ubermetroid/resilio-sync-container:v0.1.0"));
 

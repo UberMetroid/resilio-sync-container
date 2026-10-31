@@ -93,7 +93,7 @@ jobs:
           else
             cat << 'EOF' > /tmp/Dockerfile.ci
           FROM debian:bookworm-slim
-          RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates util-linux libxcrypt1 && rm -rf /var/lib/apt/lists/*
+          RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates util-linux libcrypt1 && rm -rf /var/lib/apt/lists/*
           COPY prebuilt/rslsync-init /bin/rslsync-init
           COPY prebuilt/rslsync-config /bin/rslsync-config
           COPY prebuilt/rslsync-health /bin/rslsync-health
