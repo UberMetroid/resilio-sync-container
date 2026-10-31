@@ -89,8 +89,14 @@
             ];
 
             extraCommands = ''
-              mkdir -p config config/storage sync tmp
+              mkdir -p config config/storage sync tmp etc
               chmod 1777 tmp
+              for f in etc/passwd etc/group; do
+                if [ -L "$f" ]; then
+                  cp --remove-destination "$(readlink -f "$f")" "$f"
+                fi
+              done
+              chmod u+w etc/passwd etc/group || true
             '';
 
             config = {

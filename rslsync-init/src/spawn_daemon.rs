@@ -85,6 +85,7 @@ pub fn spawn_daemon_process(
             if matches!(child.try_wait(), Ok(None)) {
                 return Ok(child);
             }
+            let _ = child.wait();
         }
 
         let mut fallback = Command::new(prog);

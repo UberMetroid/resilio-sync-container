@@ -68,12 +68,30 @@ jobs:
           if command -v guix >/dev/null 2>&1; then
             PACK_PATH=$(guix pack -f docker --entry-point=/bin/rslsync-init -S /bin=bin -S /etc=etc -S /share=share -m manifest.scm | tail -n 1)
             cp "$PACK_PATH" resilio-sync-guix-docker-x86_64.tar.gz
-            docker load -i resilio-sync-guix-docker-x86_64.tar.gz
           fi
 
-      - name: Step 7 - Smoke-Test Container & Health Probe
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Step 7 - Load Image, Smoke-Test & Push Updated Digest to GHCR
         run: |
-          cat << 'EOF' > /tmp/Dockerfile.ci
+          if [ -f resilio-sync-guix-docker-x86_64.tar.gz ]; then
+            IMAGE_NAME=$(docker load -i resilio-sync-guix-docker-x86_64.tar.gz | awk -F': ' '/Loaded image:/ {print $2}')
+            CONTAINER_ID=$(docker create "$IMAGE_NAME" /bin/rslsync-init)
+            docker cp prebuilt/rslsync-init "$CONTAINER_ID":/bin/rslsync-init
+            docker cp prebuilt/rslsync-config "$CONTAINER_ID":/bin/rslsync-config
+            docker cp prebuilt/rslsync-health "$CONTAINER_ID":/bin/rslsync-health
+            docker commit \
+              --change 'ENTRYPOINT ["/bin/rslsync-init"]' \
+              --change 'HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD ["/bin/rslsync-health", "--check"]' \
+              "$CONTAINER_ID" ghcr.io/ubermetroid/resilio-sync-container:latest
+            docker rm -f "$CONTAINER_ID"
+          else
+            cat << 'EOF' > /tmp/Dockerfile.ci
           FROM debian:bookworm-slim
           RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates util-linux libxcrypt1 && rm -rf /var/lib/apt/lists/*
           COPY prebuilt/rslsync-init /bin/rslsync-init
@@ -85,8 +103,9 @@ jobs:
           ENTRYPOINT ["/bin/rslsync-init"]
           HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD ["/bin/rslsync-health", "--check"]
           EOF
-          docker build -f /tmp/Dockerfile.ci -t ghcr.io/ubermetroid/resilio-sync-container:smoke .
-          docker run -d --name rslsync-smoke -e PUID=1026 -e PGID=100 ghcr.io/ubermetroid/resilio-sync-container:smoke
+            docker build -f /tmp/Dockerfile.ci -t ghcr.io/ubermetroid/resilio-sync-container:latest .
+          fi
+          docker run -d --name rslsync-smoke -e PUID=1026 -e PGID=100 ghcr.io/ubermetroid/resilio-sync-container:latest
           for i in $(seq 1 20); do
             sleep 2
             if docker exec rslsync-smoke /bin/rslsync-health --check; then
@@ -96,3 +115,7 @@ jobs:
           docker logs rslsync-smoke
           docker exec rslsync-smoke /bin/rslsync-health --check
           docker rm -fv rslsync-smoke
+          docker tag ghcr.io/ubermetroid/resilio-sync-container:latest ghcr.io/ubermetroid/resilio-sync-container:v0.1.0
+          docker push ghcr.io/ubermetroid/resilio-sync-container:latest
+          docker push ghcr.io/ubermetroid/resilio-sync-container:v0.1.0
+

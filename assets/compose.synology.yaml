@@ -24,7 +24,7 @@ services:
       - "8888:8888/tcp"
       - "55555:55555/tcp"
       - "55555:55555/udp"
-      - "9198:9198/tcp"
+      - "127.0.0.1:9198:9198/tcp"
     volumes:
       - /volume1/docker/resilio-sync/config:/config:rw
       - /volume1/sync:/sync:rw

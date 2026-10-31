@@ -84,7 +84,12 @@ pub fn synthesize_nss_entries(passwd_path: &Path, group_path: &Path, puid: u32, 
             updated.push_str(&format!(
                 "rslsync-{puid}:x:{puid}:{pgid}:Resilio Sync User:/config:/bin/sh\n"
             ));
-            let _ = fs::write(passwd_path, updated);
+            if let Err(e) = fs::write(passwd_path, updated) {
+                eprintln!(
+                    "[rslsync-init] WARN: Failed to write NSS entry to {}: {e}",
+                    passwd_path.display()
+                );
+            }
         }
     }
     if let Ok(existing_gr) = fs::read_to_string(group_path) {
@@ -97,7 +102,12 @@ pub fn synthesize_nss_entries(passwd_path: &Path, group_path: &Path, puid: u32, 
                 updated.push('\n');
             }
             updated.push_str(&format!("rslsync-{pgid}:x:{pgid}:\n"));
-            let _ = fs::write(group_path, updated);
+            if let Err(e) = fs::write(group_path, updated) {
+                eprintln!(
+                    "[rslsync-init] WARN: Failed to write NSS entry to {}: {e}",
+                    group_path.display()
+                );
+            }
         }
     }
 }

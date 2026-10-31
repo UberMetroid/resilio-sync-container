@@ -35,7 +35,6 @@ fn spawn_or_exit(res: Result<Child, String>) -> Child {
 }
 
 fn supervise_loop(ctx: &DaemonContext<'_>, mut sync_child: Child, mut health_child: Child) {
-    let _ = std::fs::remove_file("/run/rslsync.shutdown");
     let rslsync_bin = find_rslsync_bin();
     let conf_path = Path::new(ctx.sync_conf_path);
     let mut last_mtime = file_mtime(conf_path);
@@ -126,18 +125,27 @@ fn supervise_loop(ctx: &DaemonContext<'_>, mut sync_child: Child, mut health_chi
     log("Clean shutdown complete.");
 }
 
+fn run_shutdown_cli() -> ! {
+    let _ = std::fs::create_dir_all("/run");
+    if let Err(e) = std::fs::write("/run/rslsync.shutdown", b"1\n") {
+        log(&format!("ERROR: Failed writing /run/rslsync.shutdown: {e}"));
+        exit(1);
+    }
+    for _ in 0..24 {
+        if !Path::new("/run/rslsync.shutdown").exists() {
+            exit(0);
+        }
+        thread::sleep(Duration::from_millis(500));
+    }
+    log("ERROR: Timed out waiting 12s for supervisor to acknowledge /run/rslsync.shutdown.");
+    exit(1);
+}
+
 fn main() {
     if env::args().any(|a| a == "--shutdown") {
-        let _ = std::fs::create_dir_all("/run");
-        let _ = std::fs::write("/run/rslsync.shutdown", b"1\n");
-        for _ in 0..24 {
-            if !Path::new("/run/rslsync.shutdown").exists() {
-                break;
-            }
-            thread::sleep(Duration::from_millis(500));
-        }
-        return;
+        run_shutdown_cli();
     }
+    let _ = std::fs::remove_file("/run/rslsync.shutdown");
 
     let euid = read_effective_uid();
     let is_root = euid == 0;

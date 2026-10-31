@@ -105,11 +105,18 @@ fn test_manifests_and_multi_platform_templates() -> Result<(), Box<dyn std::erro
     let synology_yml = fs::read_to_string(workspace_root.join("assets/compose.synology.yaml"))?;
     assert!(synology_yml.contains("PUID=1026"));
     assert!(synology_yml.contains("PGID=100"));
+    assert!(synology_yml.contains("127.0.0.1:9198:9198/tcp"));
 
     let fedora_quadlet = fs::read_to_string(workspace_root.join("assets/resilio-sync.container"))?;
     assert!(fedora_quadlet.contains("UserNS=keep-id:uid=1000,gid=1000"));
     assert!(fedora_quadlet.contains(":Z"));
     assert!(fedora_quadlet.contains(":z"));
+
+    let ci_yml =
+        fs::read_to_string(workspace_root.join(".github/workflows/build-and-publish.yml"))?;
+    assert!(ci_yml.contains("docker/login-action@v3"));
+    assert!(ci_yml.contains("docker push ghcr.io/ubermetroid/resilio-sync-container:latest"));
+    assert!(ci_yml.contains("docker push ghcr.io/ubermetroid/resilio-sync-container:v0.1.0"));
 
     Ok(())
 }

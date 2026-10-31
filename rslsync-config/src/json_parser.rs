@@ -48,13 +48,8 @@ pub fn strip_json_comments(input: &str) -> Result<String, String> {
                 out.push(bytes[i + 1]);
                 i += 2;
                 continue;
-            } else if b == b'"' {
-                in_str = false;
             }
-            i += 1;
-        } else if b == b'"' {
-            in_str = true;
-            out.push(b);
+            in_str = b != b'"';
             i += 1;
         } else if (b == b'/' && bytes.get(i + 1) == Some(&b'/')) || b == b'#' {
             while i < bytes.len() && bytes[i] != b'\n' {
@@ -78,6 +73,7 @@ pub fn strip_json_comments(input: &str) -> Result<String, String> {
                 return Err("Unterminated /* ... */ block comment in sync.conf".to_string());
             }
         } else {
+            in_str = b == b'"';
             out.push(b);
             i += 1;
         }
@@ -102,26 +98,21 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_value(&mut self) -> Result<JsonValue, String> {
-        match self.peek() {
-            Some(b'{') => self.parse_object(),
-            Some(b'[') => self.parse_array(),
-            Some(b'"') => self.parse_string().map(JsonValue::Str),
-            Some(b't') if self.bytes[self.pos..].starts_with(b"true") => {
-                self.pos += 4;
-                Ok(JsonValue::Bool(true))
-            }
-            Some(b'f') if self.bytes[self.pos..].starts_with(b"false") => {
-                self.pos += 5;
-                Ok(JsonValue::Bool(false))
-            }
-            Some(b'n') if self.bytes[self.pos..].starts_with(b"null") => {
-                self.pos += 4;
-                Ok(JsonValue::Null)
-            }
-            Some(b'-' | b'0'..=b'9') => self.parse_number(),
-            Some(c) => Err(format!("Unexpected token '{}' at {}", c as char, self.pos)),
-            None => Err("Unexpected end of JSON input".to_string()),
-        }
+        let tok = self.peek();
+        let rest = &self.bytes[self.pos..];
+        let (n, val) = match tok {
+            Some(b'{') => return self.parse_object(),
+            Some(b'[') => return self.parse_array(),
+            Some(b'"') => return self.parse_string().map(JsonValue::Str),
+            Some(b't') if rest.starts_with(b"true") => (4, JsonValue::Bool(true)),
+            Some(b'f') if rest.starts_with(b"false") => (5, JsonValue::Bool(false)),
+            Some(b'n') if rest.starts_with(b"null") => (4, JsonValue::Null),
+            Some(b'-' | b'0'..=b'9') => return self.parse_number(),
+            Some(c) => return Err(format!("Unexpected token '{}' at {}", c as char, self.pos)),
+            None => return Err("Unexpected end of JSON input".to_string()),
+        };
+        self.pos += n;
+        Ok(val)
     }
 
     fn parse_string(&mut self) -> Result<String, String> {
@@ -145,10 +136,9 @@ impl<'a> Parser<'a> {
                     b'r' => out.push(b'\r'),
                     b't' => out.push(b'\t'),
                     b'u' => {
-                        let ch = self
-                            .bytes
-                            .get(self.pos..self.pos + 4)
-                            .and_then(|s| std::str::from_utf8(s).ok())
+                        let hex = self.bytes.get(self.pos..self.pos + 4).ok_or("Bad \\u")?;
+                        let ch = std::str::from_utf8(hex)
+                            .ok()
                             .and_then(|s| u32::from_str_radix(s, 16).ok())
                             .and_then(char::from_u32)
                             .ok_or("Invalid \\uXXXX escape")?;
@@ -166,13 +156,30 @@ impl<'a> Parser<'a> {
         Err("Unterminated JSON string".to_string())
     }
 
+    fn step_delim(&mut self, close: u8, kind: &str) -> Result<bool, String> {
+        match self.peek() {
+            Some(b',') => {
+                self.pos += 1;
+                if self.peek() == Some(close) {
+                    return Err(format!("Trailing comma in JSON {kind} is invalid"));
+                }
+                Ok(true)
+            }
+            Some(c) if c == close => {
+                self.pos += 1;
+                Ok(false)
+            }
+            _ => Err(format!("Expected ',' or closing delimiter in JSON {kind}")),
+        }
+    }
+
     fn parse_object(&mut self) -> Result<JsonValue, String> {
         self.pos += 1;
-        let mut entries: Vec<(String, JsonValue)> = Vec::new();
         if self.peek() == Some(b'}') {
             self.pos += 1;
-            return Ok(JsonValue::Object(entries));
+            return Ok(JsonValue::Object(Vec::new()));
         }
+        let mut entries = Vec::new();
         loop {
             let key = self.parse_string()?;
             if entries.iter().any(|(k, _)| k == &key) {
@@ -183,43 +190,23 @@ impl<'a> Parser<'a> {
             }
             self.pos += 1;
             entries.push((key, self.parse_value()?));
-            match self.peek() {
-                Some(b',') => {
-                    self.pos += 1;
-                    if self.peek() == Some(b'}') {
-                        return Err("Trailing comma in JSON object is invalid".to_string());
-                    }
-                }
-                Some(b'}') => {
-                    self.pos += 1;
-                    return Ok(JsonValue::Object(entries));
-                }
-                _ => return Err("Expected ',' or '}' in JSON object".to_string()),
+            if !self.step_delim(b'}', "object")? {
+                return Ok(JsonValue::Object(entries));
             }
         }
     }
 
     fn parse_array(&mut self) -> Result<JsonValue, String> {
         self.pos += 1;
-        let mut items = Vec::new();
         if self.peek() == Some(b']') {
             self.pos += 1;
-            return Ok(JsonValue::Array(items));
+            return Ok(JsonValue::Array(Vec::new()));
         }
+        let mut items = Vec::new();
         loop {
             items.push(self.parse_value()?);
-            match self.peek() {
-                Some(b',') => {
-                    self.pos += 1;
-                    if self.peek() == Some(b']') {
-                        return Err("Trailing comma in JSON array is invalid".to_string());
-                    }
-                }
-                Some(b']') => {
-                    self.pos += 1;
-                    return Ok(JsonValue::Array(items));
-                }
-                _ => return Err("Expected ',' or ']' in JSON array".to_string()),
+            if !self.step_delim(b']', "array")? {
+                return Ok(JsonValue::Array(items));
             }
         }
     }
