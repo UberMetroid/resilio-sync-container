@@ -119,10 +119,19 @@ pub fn seed_folder_ignore_lists(sync_root: &Path) {
     for entry in entries.flatten() {
         let folder = entry.path();
         let dot_sync = folder.join(".sync");
-        if !dot_sync.is_dir() {
+        if !fs::symlink_metadata(&dot_sync)
+            .map(|m| m.file_type().is_dir())
+            .unwrap_or(false)
+        {
             continue;
         }
         let ignore_file = dot_sync.join("IgnoreList");
+        if fs::symlink_metadata(&ignore_file)
+            .map(|m| m.file_type().is_symlink())
+            .unwrap_or(false)
+        {
+            continue;
+        }
         if let Ok(existing) = fs::read_to_string(&ignore_file) {
             if existing.contains(IGNORE_MARKER) {
                 continue;
@@ -184,7 +193,7 @@ pub fn ensure_active_sync_conf(
     cfg: &SyncEnvConfig,
     umask_val: u32,
 ) -> Result<String, String> {
-    let file_mode = 0o666 & !umask_val;
+    let file_mode = 0o640 & !umask_val;
     if conf_path.exists() {
         if let Ok(existing) = fs::read_to_string(conf_path) {
             if !existing.trim().is_empty() {

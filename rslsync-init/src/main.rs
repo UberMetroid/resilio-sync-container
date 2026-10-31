@@ -14,7 +14,8 @@ use std::time::{Duration, Instant};
 
 use spawn_daemon::{
     file_mtime, find_rslsync_bin, format_umask, parse_octal_umask, read_effective_uid,
-    run_validator, spawn_daemon_process, terminate_children, DaemonContext,
+    rootless_zero_maps_to_puid, run_validator, spawn_daemon_process, terminate_children,
+    DaemonContext,
 };
 use sync_config::{ensure_active_sync_conf, ensure_directories_and_ownership, SyncEnvConfig};
 
@@ -34,6 +35,18 @@ fn spawn_or_exit(res: Result<Child, String>) -> Child {
     }
 }
 
+const SHUTDOWN_MARKERS: [&str; 3] = [
+    "/config/.rslsync.shutdown",
+    "/tmp/rslsync.shutdown",
+    "/run/rslsync.shutdown",
+];
+
+fn clear_shutdown_markers() {
+    for marker in SHUTDOWN_MARKERS {
+        let _ = std::fs::remove_file(marker);
+    }
+}
+
 fn supervise_loop(ctx: &DaemonContext<'_>, mut sync_child: Child, mut health_child: Child) {
     let rslsync_bin = find_rslsync_bin();
     let conf_path = Path::new(ctx.sync_conf_path);
@@ -41,7 +54,7 @@ fn supervise_loop(ctx: &DaemonContext<'_>, mut sync_child: Child, mut health_chi
     let mut last_watch = Instant::now();
 
     while !SHUTDOWN_REQUESTED.load(Ordering::SeqCst) {
-        if Path::new("/run/rslsync.shutdown").exists() {
+        if SHUTDOWN_MARKERS.iter().any(|m| Path::new(m).exists()) {
             SHUTDOWN_REQUESTED.store(true, Ordering::SeqCst);
             break;
         }
@@ -121,23 +134,33 @@ fn supervise_loop(ctx: &DaemonContext<'_>, mut sync_child: Child, mut health_chi
     log("Shutdown requested; sending SIGTERM to rslsync (10s WAL checkpoint window)...");
     let mut children = [sync_child, health_child];
     terminate_children(&mut children);
-    let _ = std::fs::remove_file("/run/rslsync.shutdown");
+    clear_shutdown_markers();
     log("Clean shutdown complete.");
+    thread::sleep(Duration::from_millis(500));
 }
 
 fn run_shutdown_cli() -> ! {
-    let _ = std::fs::create_dir_all("/run");
-    if let Err(e) = std::fs::write("/run/rslsync.shutdown", b"1\n") {
-        log(&format!("ERROR: Failed writing /run/rslsync.shutdown: {e}"));
-        exit(1);
+    let mut written_marker = None;
+    for marker in SHUTDOWN_MARKERS {
+        if let Some(parent) = Path::new(marker).parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        if std::fs::write(marker, b"1\n").is_ok() {
+            written_marker = Some(marker);
+            break;
+        }
     }
-    for _ in 0..24 {
-        if !Path::new("/run/rslsync.shutdown").exists() {
+    let Some(active_marker) = written_marker else {
+        log("ERROR: Failed writing shutdown marker to /config/.rslsync.shutdown or /run/rslsync.shutdown");
+        exit(1);
+    };
+    for _ in 0..120 {
+        if !Path::new(active_marker).exists() {
             exit(0);
         }
-        thread::sleep(Duration::from_millis(500));
+        thread::sleep(Duration::from_millis(100));
     }
-    log("ERROR: Timed out waiting 12s for supervisor to acknowledge /run/rslsync.shutdown.");
+    log("ERROR: Timed out waiting 12s for supervisor to acknowledge shutdown marker.");
     exit(1);
 }
 
@@ -145,23 +168,29 @@ fn main() {
     if env::args().any(|a| a == "--shutdown") {
         run_shutdown_cli();
     }
-    let _ = std::fs::remove_file("/run/rslsync.shutdown");
+    clear_shutdown_markers();
 
     let euid = read_effective_uid();
     let is_root = euid == 0;
-    let puid: u32 = env::var("PUID")
+    let raw_puid: u32 = env::var("PUID")
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(if is_root { 99 } else { euid });
-    let pgid: u32 = env::var("PGID")
+    let raw_pgid: u32 = env::var("PGID")
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(100);
-    let umask_str = env::var("UMASK").unwrap_or_else(|_| "002".to_string());
-    let umask_val = parse_octal_umask(&umask_str);
-    let drop_privs = env::var("DROP_PRIVS")
-        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-        .unwrap_or(true);
+    let rootless_mapped = is_root && rootless_zero_maps_to_puid(raw_puid);
+    let (puid, pgid) = if rootless_mapped {
+        (0, 0)
+    } else {
+        (raw_puid, raw_pgid)
+    };
+    let umask_val = parse_octal_umask(&env::var("UMASK").unwrap_or_else(|_| "002".to_string()));
+    let drop_privs = !rootless_mapped
+        && env::var("DROP_PRIVS")
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .unwrap_or(true);
     let sync_conf_path =
         env::var("SYNC_CONF_PATH").unwrap_or_else(|_| "/config/sync.conf".to_string());
 
@@ -178,7 +207,6 @@ fn main() {
         exit(1);
     }
 
-    // Re-ensure /config ownership after writing sync.conf
     ensure_directories_and_ownership(puid, pgid, umask_val, is_root, false);
 
     log("Running rslsync-config pre-flight JSON & v3 schema validation...");

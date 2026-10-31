@@ -43,6 +43,35 @@ pub fn read_effective_uid() -> u32 {
     0
 }
 
+pub fn rootless_zero_maps_to_puid(puid: u32) -> bool {
+    if puid == 0 {
+        return false;
+    }
+    let Ok(uid_map) = fs::read_to_string("/proc/self/uid_map") else {
+        return false;
+    };
+    parse_uid_map_zero_to_puid(&uid_map, puid)
+}
+
+pub fn parse_uid_map_zero_to_puid(uid_map: &str, puid: u32) -> bool {
+    for line in uid_map.lines() {
+        let mut parts = line.split_whitespace();
+        let Some(inside) = parts.next().and_then(|s| s.parse::<u64>().ok()) else {
+            continue;
+        };
+        let Some(outside) = parts.next().and_then(|s| s.parse::<u64>().ok()) else {
+            continue;
+        };
+        let Some(count) = parts.next().and_then(|s| s.parse::<u64>().ok()) else {
+            continue;
+        };
+        if inside == 0 && count == 1 && outside == u64::from(puid) {
+            return true;
+        }
+    }
+    false
+}
+
 pub fn find_rslsync_bin() -> &'static str {
     ["/bin/rslsync", "/usr/bin/rslsync"]
         .into_iter()
@@ -147,5 +176,17 @@ mod tests {
         assert_eq!(parse_octal_umask("invalid"), 0o002);
         assert_eq!(format_umask(0o002), "002");
         let _ = read_effective_uid();
+        assert!(parse_uid_map_zero_to_puid(
+            "         0       1000          1\n         1     524288      65536\n",
+            1000
+        ));
+        assert!(!parse_uid_map_zero_to_puid(
+            "         0          0 4294967295\n",
+            1000
+        ));
+        assert!(!parse_uid_map_zero_to_puid(
+            "         0          1       1000\n      1000          0          1\n",
+            1000
+        ));
     }
 }

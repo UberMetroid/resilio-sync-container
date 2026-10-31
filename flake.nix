@@ -96,6 +96,9 @@
                   cp --remove-destination "$(readlink -f "$f")" "$f"
                 fi
               done
+              grep -q ':1000:' etc/group || echo 'fedora:x:1000:' >> etc/group
+              grep -q ':1000:' etc/passwd || echo 'fedora:x:1000:1000:Fedora User:/config:/bin/sh' >> etc/passwd
+              grep -q ':1026:' etc/passwd || echo 'rslsync:x:1026:100:Synology User:/config:/bin/sh' >> etc/passwd
               chmod u+w etc/passwd etc/group || true
             '';
 

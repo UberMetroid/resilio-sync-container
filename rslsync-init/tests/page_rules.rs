@@ -22,19 +22,27 @@ const BANNED_FILENAMES: &[&str] = &[
 const WORKSPACE_CRATES: &[&str] = &["rslsync-init", "rslsync-config", "rslsync-health"];
 
 fn is_shim(content: &str) -> bool {
+    let mut in_block = false;
     content.lines().all(|line| {
         let trimmed = line.trim();
-        if trimmed.is_empty() {
+        if in_block {
+            if trimmed.contains("*/") {
+                in_block = false;
+            }
             return true;
         }
-        if trimmed.starts_with("//")
-            || trimmed.starts_with("/*")
+        if trimmed.starts_with("/*") {
+            if !trimmed.contains("*/") {
+                in_block = true;
+            }
+            return true;
+        }
+        if trimmed.is_empty()
+            || trimmed.starts_with("//")
             || trimmed.starts_with('*')
-            || trimmed.starts_with("*/")
+            || trimmed.starts_with("#[")
+            || trimmed.starts_with("#![")
         {
-            return true;
-        }
-        if trimmed.starts_with("#[") || trimmed.starts_with("#![") {
             return true;
         }
         trimmed.starts_with("mod ")

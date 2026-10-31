@@ -2,42 +2,24 @@
 
 use crate::json_parser::{parse_sync_conf_json, JsonValue};
 
+#[rustfmt::skip]
 const ALLOWED_TOP_KEYS: &[&str] = &[
-    "device_name",
-    "listening_port",
-    "storage_path",
-    "pid_file",
-    "use_upnp",
-    "download_limit",
-    "upload_limit",
-    "directory_root",
-    "directory_root_policy",
-    "files_default_path",
-    "vendor",
-    "display_new_version",
-    "lan_encrypt_data",
-    "rate_limit_local_peers",
-    "folder_rescan_interval",
-    "max_file_size_for_versioning",
-    "sync_max_time_diff",
-    "sync_trash_ttl",
-    "overwrite_changes",
-    "shared_folders",
-    "webui",
+    "device_name", "listening_port", "storage_path", "pid_file", "use_upnp",
+    "download_limit", "upload_limit", "directory_root", "directory_root_policy",
+    "files_default_path", "vendor", "display_new_version", "lan_encrypt_data",
+    "rate_limit_local_peers", "folder_rescan_interval", "max_file_size_for_versioning",
+    "sync_max_time_diff", "sync_trash_ttl", "overwrite_changes", "shared_folders",
+    "webui", "proxy_type", "proxy_addr", "proxy_port", "proxy_auth", "proxy_username",
+    "proxy_password", "search_lan", "known_hosts", "folder_defaults.delete_to_trash",
+    "folder_defaults.use_tracker", "folder_defaults.use_relay", "folder_defaults.use_lan_broadcast",
+    "folder_defaults.known_hosts", "folder_defaults.transfer_priority", "bind_interface",
+    "max_packet_size", "use_relay_server", "use_tracker", "disk_low_priority", "profiler_enabled",
 ];
 
+#[rustfmt::skip]
 const ALLOWED_WEBUI_KEYS: &[&str] = &[
-    "listen",
-    "login",
-    "password",
-    "password_hash",
-    "allow_empty_password",
-    "dir_whitelist",
-    "force_https",
-    "ssl_certificate",
-    "ssl_private_key",
-    "api_key",
-    "context",
+    "listen", "login", "password", "password_hash", "allow_empty_password",
+    "dir_whitelist", "force_https", "ssl_certificate", "ssl_private_key", "api_key", "context",
 ];
 
 #[derive(Debug, Clone, PartialEq)]
@@ -109,9 +91,9 @@ pub fn validate_sync_conf_str(raw: &str, health_port: u16) -> Result<ValidatedSy
     let storage_path = find_key(obj, "storage_path")
         .and_then(JsonValue::as_str)
         .ok_or_else(|| "Missing or non-string 'storage_path' in sync.conf".to_string())?;
-    if !is_confined_to(storage_path, "/config") {
+    if !is_confined_to(storage_path, "/config") || storage_path.trim_end_matches('/') == "/config" {
         return Err(format!(
-            "storage_path '{storage_path}' must reside under /config without '..' traversal"
+            "storage_path '{storage_path}' must reside under /config (e.g. /config/storage) without '..' traversal"
         ));
     }
 
@@ -211,6 +193,12 @@ mod tests {
         assert_eq!(v.listening_port, 55555);
         assert_eq!(v.webui_port, 8888);
         assert_eq!(v.storage_path, "/config/storage");
+
+        let with_proxy = SAMPLE_CONF.replace(
+            "\"use_upnp\": false,",
+            "\"use_upnp\": false, \"proxy_type\": \"SOCKS5\", \"search_lan\": true,",
+        );
+        assert!(validate_sync_conf_str(&with_proxy, 9198).is_ok());
     }
 
     #[test]

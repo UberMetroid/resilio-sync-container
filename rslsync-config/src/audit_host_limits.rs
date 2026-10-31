@@ -27,6 +27,16 @@ pub fn audit_storage_and_paths(cfg: &ValidatedSyncConf) -> Result<(), String> {
         ));
     }
 
+    if fs::symlink_metadata(storage)
+        .map(|m| m.file_type().is_symlink())
+        .unwrap_or(false)
+    {
+        return Err(format!(
+            "storage_path '{}' must not be a symlink",
+            cfg.storage_path
+        ));
+    }
+
     let pid_path = Path::new(&cfg.pid_file);
     if let Some(parent) = pid_path.parent() {
         if !parent.exists() || !parent.is_dir() {
@@ -41,6 +51,15 @@ pub fn audit_storage_and_paths(cfg: &ValidatedSyncConf) -> Result<(), String> {
     if !sync_root.exists() || !sync_root.is_dir() {
         return Err(format!(
             "directory_root '{}' does not exist or is not a directory",
+            cfg.directory_root
+        ));
+    }
+    if fs::symlink_metadata(sync_root)
+        .map(|m| m.file_type().is_symlink())
+        .unwrap_or(false)
+    {
+        return Err(format!(
+            "directory_root '{}' must not be a symlink",
             cfg.directory_root
         ));
     }

@@ -26,9 +26,7 @@ impl SyncHealthSnapshot {
 
 fn strip_comments_outside_strings(input: &str) -> String {
     let bytes = input.as_bytes();
-    let mut out = Vec::with_capacity(bytes.len());
-    let mut i = 0;
-    let mut in_str = false;
+    let (mut out, mut i, mut in_str) = (Vec::with_capacity(bytes.len()), 0, false);
     while i < bytes.len() {
         let b = bytes[i];
         if in_str {
@@ -37,13 +35,8 @@ fn strip_comments_outside_strings(input: &str) -> String {
                 out.push(bytes[i + 1]);
                 i += 2;
                 continue;
-            } else if b == b'"' {
-                in_str = false;
             }
-            i += 1;
-        } else if b == b'"' {
-            in_str = true;
-            out.push(b);
+            in_str = b != b'"';
             i += 1;
         } else if (b == b'/' && bytes.get(i + 1) == Some(&b'/')) || b == b'#' {
             while i < bytes.len() && bytes[i] != b'\n' {
@@ -59,11 +52,40 @@ fn strip_comments_outside_strings(input: &str) -> String {
                 i += 1;
             }
         } else {
+            in_str = b == b'"';
             out.push(b);
             i += 1;
         }
     }
     String::from_utf8_lossy(&out).into_owned()
+}
+
+fn split_top_tokens(s: &str) -> Vec<String> {
+    let (mut tokens, mut cur, mut in_str, mut esc) = (Vec::new(), String::new(), false, false);
+    for ch in s.chars() {
+        if in_str {
+            cur.push(ch);
+            if esc {
+                esc = false;
+            } else if ch == '\\' {
+                esc = true;
+            } else if ch == '"' {
+                in_str = false;
+            }
+        } else if matches!(ch, ',' | '{' | '}' | '\n') {
+            if !cur.trim().is_empty() {
+                tokens.push(cur.trim().to_string());
+            }
+            cur.clear();
+        } else {
+            in_str = ch == '"';
+            cur.push(ch);
+        }
+    }
+    if !cur.trim().is_empty() {
+        tokens.push(cur.trim().to_string());
+    }
+    tokens
 }
 
 pub fn extract_sync_conf_ports(raw_conf: &str) -> (String, String, u16, u16) {
@@ -74,8 +96,7 @@ pub fn extract_sync_conf_ports(raw_conf: &str) -> (String, String, u16, u16) {
 
     let clean_lines = strip_comments_outside_strings(raw_conf);
 
-    for segment in clean_lines.split([',', '{', '}', '\n']) {
-        let trimmed = segment.trim();
+    for trimmed in split_top_tokens(&clean_lines) {
         if let Some((k, v)) = trimmed.split_once(':') {
             let key = k.trim().trim_matches('"');
             let val = v.trim().trim_matches('"').trim();
