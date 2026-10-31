@@ -13,25 +13,25 @@ pub enum JsonValue {
 impl JsonValue {
     pub fn as_object(&self) -> Option<&[(String, JsonValue)]> {
         match self {
-            JsonValue::Object(entries) => Some(entries),
+            Self::Object(e) => Some(e),
             _ => None,
         }
     }
     pub fn as_str(&self) -> Option<&str> {
         match self {
-            JsonValue::Str(s) => Some(s),
+            Self::Str(s) => Some(s),
             _ => None,
         }
     }
     pub fn as_i64(&self) -> Option<i64> {
         match self {
-            JsonValue::Number(n) => Some(*n),
+            Self::Number(n) => Some(*n),
             _ => None,
         }
     }
     pub fn as_bool(&self) -> Option<bool> {
         match self {
-            JsonValue::Bool(b) => Some(*b),
+            Self::Bool(b) => Some(*b),
             _ => None,
         }
     }
@@ -39,10 +39,7 @@ impl JsonValue {
 
 pub fn strip_json_comments(input: &str) -> Result<String, String> {
     let bytes = input.as_bytes();
-    let mut out = Vec::with_capacity(bytes.len());
-    let mut i = 0;
-    let mut in_str = false;
-
+    let (mut out, mut i, mut in_str) = (Vec::with_capacity(bytes.len()), 0, false);
     while i < bytes.len() {
         let b = bytes[i];
         if in_str {
@@ -59,8 +56,7 @@ pub fn strip_json_comments(input: &str) -> Result<String, String> {
             in_str = true;
             out.push(b);
             i += 1;
-        } else if b == b'/' && bytes.get(i + 1) == Some(&b'/') {
-            i += 2;
+        } else if (b == b'/' && bytes.get(i + 1) == Some(&b'/')) || b == b'#' {
             while i < bytes.len() && bytes[i] != b'\n' {
                 i += 1;
             }
@@ -122,11 +118,8 @@ impl<'a> Parser<'a> {
                 self.pos += 4;
                 Ok(JsonValue::Null)
             }
-            Some(b'-') | Some(b'0'..=b'9') => self.parse_number(),
-            Some(c) => Err(format!(
-                "Unexpected token '{}' at byte {}",
-                c as char, self.pos
-            )),
+            Some(b'-' | b'0'..=b'9') => self.parse_number(),
+            Some(c) => Err(format!("Unexpected token '{}' at {}", c as char, self.pos)),
             None => Err("Unexpected end of JSON input".to_string()),
         }
     }
@@ -147,9 +140,21 @@ impl<'a> Parser<'a> {
                 self.pos += 1;
                 match esc {
                     b'"' | b'\\' | b'/' => out.push(esc),
+                    b'b' | b'f' => out.push(if esc == b'b' { 0x08 } else { 0x0C }),
                     b'n' => out.push(b'\n'),
                     b'r' => out.push(b'\r'),
                     b't' => out.push(b'\t'),
+                    b'u' => {
+                        let ch = self
+                            .bytes
+                            .get(self.pos..self.pos + 4)
+                            .and_then(|s| std::str::from_utf8(s).ok())
+                            .and_then(|s| u32::from_str_radix(s, 16).ok())
+                            .and_then(char::from_u32)
+                            .ok_or("Invalid \\uXXXX escape")?;
+                        self.pos += 4;
+                        out.extend_from_slice(ch.to_string().as_bytes());
+                    }
                     _ => return Err(format!("Unsupported JSON escape '\\{}'", esc as char)),
                 }
             } else if b < 0x20 {
@@ -241,10 +246,8 @@ impl<'a> Parser<'a> {
 
 pub fn parse_sync_conf_json(raw: &str) -> Result<JsonValue, String> {
     let stripped = strip_json_comments(raw)?;
-    let mut parser = Parser {
-        bytes: stripped.as_bytes(),
-        pos: 0,
-    };
+    let bytes = stripped.as_bytes();
+    let mut parser = Parser { bytes, pos: 0 };
     let root = parser.parse_value()?;
     if parser.peek().is_some() {
         return Err(format!("Unexpected trailing data at byte {}", parser.pos));

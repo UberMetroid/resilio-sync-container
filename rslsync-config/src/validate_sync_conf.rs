@@ -55,16 +55,17 @@ fn find_key<'a>(entries: &'a [(String, JsonValue)], key: &str) -> Option<&'a Jso
 
 fn is_confined_to(path_str: &str, base: &str) -> bool {
     let base_clean = base.trim_end_matches('/');
-    if !path_str.starts_with('/') {
+    let trimmed = path_str.trim_end_matches('/');
+    if !path_str.starts_with('/') || trimmed.is_empty() {
         return false;
     }
-    if path_str
+    if trimmed[1..]
         .split('/')
-        .any(|seg| seg == ".." || seg == "." || seg.contains('\0'))
+        .any(|seg| seg.is_empty() || seg == ".." || seg == "." || seg.contains('\0'))
     {
         return false;
     }
-    path_str == base_clean || path_str.starts_with(&format!("{base_clean}/"))
+    trimmed == base_clean || trimmed.starts_with(&format!("{base_clean}/"))
 }
 
 pub fn parse_host_port(addr: &str) -> Result<u16, String> {
@@ -232,5 +233,11 @@ mod tests {
         assert!(validate_sync_conf_str(&traversal, 9198).is_err());
         let sibling = SAMPLE_CONF.replace("\"/config/storage\"", "\"/configfoo\"");
         assert!(validate_sync_conf_str(&sibling, 9198).is_err());
+        let double_slash = SAMPLE_CONF.replace("\"/config/storage\"", "\"/config//storage\"");
+        assert!(validate_sync_conf_str(&double_slash, 9198).is_err());
+        let leading_zero = SAMPLE_CONF.replace("55555", "05555");
+        assert!(validate_sync_conf_str(&leading_zero, 9198).is_err());
+        let unicode_esc = SAMPLE_CONF.replace("\"resilio-node\"", "\"resilio-\\u0033\"");
+        assert!(validate_sync_conf_str(&unicode_esc, 9198).is_ok());
     }
 }
