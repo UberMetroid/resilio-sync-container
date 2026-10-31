@@ -82,13 +82,10 @@ fn append_nss_if_missing(path: &Path, id_str: &str, entry_line: &str) {
 }
 
 pub fn synthesize_nss_entries(passwd_path: &Path, group_path: &Path, puid: u32, pgid: u32) {
-    let pw_line = format!("rslsync-{puid}:x:{puid}:{pgid}:Resilio Sync User:/config:/bin/sh\n");
-    append_nss_if_missing(passwd_path, &puid.to_string(), &pw_line);
-    append_nss_if_missing(
-        group_path,
-        &pgid.to_string(),
-        &format!("rslsync-{pgid}:x:{pgid}:\n"),
-    );
+    let pw = format!("rslsync-{puid}:x:{puid}:{pgid}:Resilio Sync User:/config:/bin/sh\n");
+    append_nss_if_missing(passwd_path, &puid.to_string(), &pw);
+    let gr = format!("rslsync-{pgid}:x:{pgid}:\n");
+    append_nss_if_missing(group_path, &pgid.to_string(), &gr);
 }
 
 fn is_real_dir(path: &Path) -> bool {
@@ -111,13 +108,15 @@ fn seed_dot_sync_dir(folder: &Path) {
     }
     if let Ok(mut merged) = fs::read_to_string(&ignore_file) {
         let mut changed = false;
-        for line in DEFAULT_IGNORE_LIST.lines() {
-            let trimmed = line.trim();
-            if !trimmed.is_empty() && !merged.lines().any(|l| l.trim() == trimmed) {
+        for line in DEFAULT_IGNORE_LIST.lines().map(str::trim) {
+            if !line.is_empty()
+                && !line.starts_with("# ")
+                && !merged.lines().any(|l| l.trim() == line)
+            {
                 if !merged.ends_with('\n') && !merged.is_empty() {
                     merged.push('\n');
                 }
-                merged.push_str(trimmed);
+                merged.push_str(line);
                 merged.push('\n');
                 changed = true;
             }
@@ -139,13 +138,12 @@ fn seed_recursive(dir: &Path, remaining_depth: u8) {
         return;
     };
     for entry in entries.flatten() {
-        let path = entry.path();
-        if !matches!(
-            entry.file_name().to_string_lossy().as_ref(),
-            ".sync" | "@eaDir" | "@tmp" | "#recycle" | "#snapshot"
-        ) && is_real_dir(&path)
+        let name = entry.file_name();
+        let s = name.to_string_lossy();
+        if !(s == ".sync" || s.starts_with('@') || s.starts_with('#') || s == ".Recycle.Bin")
+            && is_real_dir(&entry.path())
         {
-            seed_recursive(&path, remaining_depth - 1);
+            seed_recursive(&entry.path(), remaining_depth - 1);
         }
     }
 }
@@ -243,13 +241,14 @@ mod tests {
         for dir in dirs.iter().chain([&d4_sync]) {
             fs::create_dir_all(dir).unwrap();
         }
-        fs::write(dirs[1].join("IgnoreList"), "#recycle\n").unwrap();
+        fs::write(dirs[1].join("IgnoreList"), "# Resilio Default\n.DS_Store\n").unwrap();
         seed_folder_ignore_lists(&tmp.join("users"));
         for dir in &dirs {
             let ig = fs::read_to_string(dir.join("IgnoreList")).unwrap();
             assert!(ig.contains("?recycle") && ig.contains("@*") && ig.contains("$RECYCLE.BIN"));
         }
-        assert!(!d4_sync.join("IgnoreList").exists());
+        let d1_ig = fs::read_to_string(dirs[1].join("IgnoreList")).unwrap();
+        assert!(!d1_ig.contains("# UBERMETROID") && !d4_sync.join("IgnoreList").exists());
         assert!(SyncEnvConfig::from_env().seed_ignore_list);
         let _ = fs::remove_dir_all(&tmp);
     }
